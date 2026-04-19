@@ -17,19 +17,26 @@
 - [Storage](wiki/systems/bug_tracker/storage.md)
 
 ## Concepts
-*(none yet)*
+- [Auth Flow](wiki/concepts/bug_tracker-auth-flow.md)
+- [Domain Model](wiki/concepts/bug_tracker-domain-model.md)
+- [Agent Capabilities](wiki/concepts/bug_tracker-agent-capabilities.md)
 
 ## Decisions
-*(none yet)*
+- [Dual Auth Strategy](wiki/decisions/bug_tracker-dual-auth-strategy.md)
+- [Tech Stack](wiki/decisions/bug_tracker-tech-stack.md)
+- [Agent Architecture](wiki/decisions/bug_tracker-agent-architecture.md)
 
 ## Incidents
 *(none yet)*
 
 ## Runbooks
-*(none yet)*
+- [Deploy](wiki/runbooks/bug_tracker-deploy.md)
+- [Local Setup](wiki/runbooks/bug_tracker-local-setup.md)
+- [Agent MVP Roadmap](wiki/runbooks/bug_tracker-agent-mvp-roadmap.md)
 
 ## Tech Debt
-*(none yet)*
+- [Incomplete Helper Bodies](wiki/tech-debt/bug_tracker-incomplete-helper-bodies.md)
+- [Local Storage](wiki/tech-debt/bug_tracker-local-storage.md)
 
 ## Open Questions
-*(none yet)*
+- [What is the agent?](wiki/queries/what-is-the-agent.md)

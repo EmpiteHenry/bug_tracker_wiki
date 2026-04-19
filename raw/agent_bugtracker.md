@@ -344,7 +344,4 @@ We are building an agentic quality operations platform that helps teams detect, 
 Or more simply:
 
 “From ticket tracking to bug resolution intelligence.”
-
-15. The real wedge
-
-The strongest wedge in the market is probably this:
+ 

@@ -54,4 +54,4 @@ Per-organization usage stats are in `org-usage-service.ts`.
 
 ## Observability Docs
 
-See [`docs/observability.md`](../../../docs/observability.md) for file output paths and structured log format details.
+See the source repo at `docs/observability.md` for file output paths and structured log format details.
