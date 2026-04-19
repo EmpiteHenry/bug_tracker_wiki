@@ -3,43 +3,57 @@ type: tech-debt
 owner: engineering
 last_updated: 2026-04-20
 source_count: 3
-tags: [tech-debt, incomplete, skeleton-code]
+tags: [tech-debt, incomplete, stubs]
 status: active
 ---
 
 # Incomplete Implementations
 
-Several helper functions in the codebase have skeletal implementations — function bodies exist but return nothing, have empty switch cases, or have missing branches.
+Several functions in the codebase have skeleton bodies with early returns or empty blocks. These were truncated in source extraction but indicate areas with partial logic.
 
-## Known Locations
+## Known Gaps
 
-### `bug-data-management-panel.helpers.ts`
+### `summarizeBugDataJobs` (`bug-data-management-panel.helpers.ts`)
 
-`summarizeBugDataJobs()` — `reduce` accumulator body is empty; return value is empty object.  
-`formatBugDataJobProgress()` — import branch returns nothing.  
-`formatBugDataJobIssueSummary()` — error and warning branches return nothing.  
-`formatBugHistoryEventLabel()` — switch statement has no cases.
+The `reduce` accumulator callback body is empty. The function returns an empty object. Counts by status and latest job references are not computed.
 
-### `all-bugs-filters.ts`
+```ts
+const countsByStatus = BUG_DATA_JOB_STATUSES.reduce(
+  (accumulator, status) => {
+    // empty
+  },
+  {} as Record<BugDataJobStatus, number>,
+);
+return {}; // no fields returned
+```
 
-`parseAllBugFilters()` — filter state construction is empty (truncated in source).
+### `formatBugDataJobProgress` / `formatBugDataJobSummary` (import branch)
 
-### `alert-list-filters.ts`
+The `if (job.jobType === "import")` branches in both functions return nothing — import-specific formatting is not yet implemented. Only export formatting is present.
 
-`validateMonitoringAlertFilters()` — date range comparison and limit validation branches are empty.
+### `formatBugHistoryEventLabel` (`bug-history.helpers.ts`)
 
-### `project-access-context.ts`
+The `switch` statement body is empty — no event type labels are mapped yet.
 
-`getNoProjectAccessContent()` — returns empty object `{}`.
+### `getBugHistoryEntrySource` (import branch)
 
-### Various API route handlers
+The `bug_import_*` event type handler returns nothing.
 
-Multiple `try/catch` blocks in admin and auth routes have empty bodies (skeleton pattern — implementation may be in separate files or not yet written).
+### Filter `buildMonitoringAlertSearchParams` / `buildAllBugSearchParams`
+
+Individual `if (severity)`, `if (status)` etc. blocks that append to `URLSearchParams` are empty — params are never actually appended.
+
+### `validateMonitoringAlertFilters` date range validation
+
+The `if (latestSeenFrom && latestSeenTo)` comparison check body is empty — no validation error is thrown for invalid date ranges.
 
 ## Impact
 
-These gaps may cause runtime errors or silent failures when the relevant code paths are hit. The most user-visible risk is in `summarizeBugDataJobs` (admin bug data panel) and `formatBugHistoryEventLabel` (bug history timeline).
+- Bug data job summary panel shows no counts or job details
+- Bug history event type labels show raw event type strings
+- Filter URL params may not serialize correctly for monitoring alerts
+- Date range validation for alert filters does not enforce ordering
 
-## Recommended Action
+## Recommendation
 
-Audit each empty function body and either implement or confirm the function is unreachable in the current feature set. Add unit tests to catch regressions.
+Audit each function body against its test file (where present) to restore intended behavior. The type signatures and surrounding logic are sound — only the implementation bodies need filling in.

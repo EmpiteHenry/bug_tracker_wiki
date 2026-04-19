@@ -3,58 +3,63 @@ type: concept
 owner: engineering
 last_updated: 2026-04-20
 source_count: 5
-tags: [domain, model, bugs, organizations, projects]
+tags: [domain, data-model, bugs, organizations, projects]
 status: active
 ---
 
 # Domain Model
 
-## Entity Hierarchy
+## Core Entities
 
 ```
-User
-└── belongs to one or more Organizations (via Membership)
-    └── Organization
-        ├── has many Projects
-        │   ├── has many Sections
-        │   └── has many Bugs (scoped to project + section)
-        │       ├── has many Comments
-        │       ├── has many Attachments
-        │       ├── has many HistoryEntries
-        │       └── has TestingSessions (QA evidence)
-        ├── has AuditLog
-        ├── has NotificationSettings
-        └── has Billing state
+Organization
+    │
+    ├── Members (Users with roles)
+    ├── Projects
+    │       └── Sections
+    │               └── Bugs
+    │                     ├── Comments
+    │                     ├── Attachments
+    │                     └── History entries
+    │
+    ├── Invitations
+    └── Notification Settings
 ```
 
-## Bug Fields
+## Bug
+
+Central entity. Key fields:
 
 | Field | Type | Notes |
 |---|---|---|
 | `title` | string | Required |
 | `description` | string | Required |
-| `severity` | string | e.g. critical, high, medium, low |
-| `status` | enum | New, Triaged, In Progress, Ready for QA, Closed |
-| `reporterUserId` | number? | Who filed it |
-| `assigneeUserId` | number? | Who owns it |
-| `projectId` | number | Required |
-| `sectionId` | number | Required |
-| `is_archived` | boolean | Soft-delete |
+| `severity` | enum | e.g. `low`, `medium`, `high`, `critical` |
+| `status` | enum | `New`, `Triaged`, `In Progress`, `Ready for QA`, `Closed` |
+| `projectId` | FK | Required |
+| `sectionId` | FK | Required |
+| `reporterUserId` | FK | Optional |
+| `assigneeUserId` | FK | Optional |
+| `is_archived` | boolean | Soft archive |
 
-## Organization Membership Roles
+Agent-specific fields: `claimedBy` (string agent name), agent `state`, `statusNote`.
 
-Roles control access to admin surfaces and project membership. `requireOrganizationAdminAccessForUser()` gates admin-only operations.
+## Organization
 
-## Active Organization Session
+Top-level tenant. Has a `slug` (URL-friendly identifier), `name`, billing state, and seat count.
 
-A user can belong to multiple organizations. The "active" org is stored in session state. All bug/project queries are scoped to the active org.
+## Project
 
-## Project Sections
+Belongs to an organization. Has a `key` (short code), `name`, `description`, and `isArchived` flag. Contains ordered **sections**.
 
-Projects have ordered sections (like columns in a board or phases in a pipeline). Sections have `displayOrder` and `isArchived`.
+## User
 
-## Operational Alerts vs Bugs
+Global (not org-scoped). Users join organizations via membership records. Roles are per-membership. QA users are a distinct user type managed by admins.
 
-**Operational Alerts** come from the monitoring system (log-derived, auto-detected).  
-**Bugs** are human or agent-submitted issue reports.  
-Alerts can be promoted to bugs via `createBugFromOperationalAlert()`.
+## Testing Session
+
+A structured QA session tied to a user. Evidence uploads via the Chrome extension require an active testing session. Logs are recorded per session in `testing_session_logs`.
+
+## Operational Alert
+
+A system-generated alert (not a user-filed bug). Admins can acknowledge/resolve alerts or promote them to bugs via `POST /api/admin/alerts/[id]/bugs`.

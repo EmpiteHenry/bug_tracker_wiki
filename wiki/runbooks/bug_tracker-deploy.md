@@ -2,58 +2,52 @@
 type: runbook
 owner: engineering
 last_updated: 2026-04-20
-source_count: 1
-tags: [deployment, nginx, production]
+source_count: 2
+tags: [deployment, nginx, production, aws, ec2]
 status: active
 ---
 
 # Deployment
 
-> Full deployment walkthrough is in `docs/deployment-nginx.md` in the repository.
-
-## Build
+## Production Build
 
 ```bash
 npm run build
-```
-
-This runs:
-1. `next build --webpack` — Next.js production build
-2. `build:db-worker` — bundles `postgres-worker.ts` to `.next/db/postgres-worker.mjs`
-
-Both artifacts are required for production.
-
-## Start
-
-```bash
 npm run start
 ```
 
-Runs `next start` — serves the production build.
-
-## Nginx
-
-The repo includes an Nginx-based reverse proxy setup documented in `docs/deployment-nginx.md`. This handles:
-- Domain-based routing
-- SSL termination
-- Proxying to `next start`
-
-## CI Script
-
-```bash
-npm run ci          # full local CI (lint + typecheck + test + build)
-npm run ci:quick    # skips slower checks
-npm run ci:e2e      # includes Playwright e2e
+`npm run build` compiles Next.js and also builds the PostgreSQL worker bundle:
 ```
+.next/db/postgres-worker.mjs
+```
+
+This worker must be present at runtime; the `predev` script also builds it before `npm run dev`.
+
+## Nginx / Reverse Proxy
+
+See `docs/deployment-nginx.md` for full nginx configuration, including:
+- Domain-based access
+- SSL termination
+- Proxy pass to Next.js
+
+## AWS EC2 Deployment
+
+A PRD for AWS EC2 deployment exists at `tasks/prd-aws-ec2-deployment.md`. Refer to it for planned infrastructure setup.
 
 ## Database
 
-Run migrations before starting the app on a new environment:
+Before first run against a new PostgreSQL instance:
 
 ```bash
 npm run db:migrate:postgres
 ```
 
-Bootstrap admin user (first deploy):
+Bootstrap admin user via `src/lib/db/bootstrap-admin.ts` (run once after migrations).
 
-See `src/lib/db/bootstrap-admin.ts`.
+## Environment Variables Required for Production
+
+| Variable | Purpose |
+|---|---|
+| `POSTGRES_*` | PostgreSQL connection |
+| `SENDGRID_API_KEY` | Email delivery |
+| Session secret | Cookie signing (see `session.ts`) |

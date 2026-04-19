@@ -2,54 +2,48 @@
 type: runbook
 owner: engineering
 last_updated: 2026-04-20
-source_count: 4
-tags: [import, export, data, admin]
+source_count: 2
+tags: [import, export, csv, bulk, admin]
 status: active
 ---
 
 # Bug Data Import & Export
 
-Admin users can bulk-import bugs from CSV and export bugs to ZIP archives via the admin panel at `/admin/bug-data`.
+## Import
 
-## Import Flow
+Admin workflow:
 
-1. **Upload CSV** — admin selects file in the bug data management panel
-2. **Validation** — system validates each row; reports invalid rows with field-level issues
-3. **Review** — admin sees validation summary: total / valid / invalid row counts; invalid rows listed with issues
-4. **Execute** — admin chooses duplicate strategy and confirms
-5. **Job tracking** — job status polled until `completed`, `completed_with_warnings`, or `failed`
+1. Prepare a CSV file with bug data
+2. Upload via Admin → Bug Data → Import
+3. System validates the CSV (row by row)
+4. Review validation result:
+   - Total / valid / invalid row counts
+   - Per-row issues with field + message
+5. Choose duplicate strategy: `skip_existing` or `update_existing`
+6. Execute import
+7. Monitor job status: `queued → running → completed | completed_with_warnings | failed`
+8. Review execution summary: created / updated / skipped / failed counts
 
-### Duplicate Strategies
+## Export
 
-| Strategy | Behaviour |
-|---|---|
-| `skip_existing` | Skip any row where a matching bug already exists |
-| `update_existing` | Overwrite fields on matching bugs |
-
-### Import Summary Fields
-
-- `createdCount` — new bugs created
-- `updatedCount` — existing bugs updated
-- `skippedCount` — rows skipped (duplicate strategy)
-- `failedCount` — rows that could not be processed
-
-## Export Flow
-
-1. Admin triggers export from the bug data management panel
-2. Job is queued and runs asynchronously
-3. On completion, a download link is available (`downloadUrl` on the job record)
-4. Export manifest includes: bug count, history entry count, attachment count, missing file count
+1. Admin → Bug Data → Export
+2. System creates an async export job
+3. Job serializes bugs + history entries + attachments into a zip
+4. Manifest records: bugCount, historyEntryCount, attachmentCount, missingFileCount
+5. Download link available once job status is `completed`
 
 ## Job Statuses
 
-```
-queued → running → completed
-                 → completed_with_warnings
-                 → failed
-```
+| Status | Meaning |
+|---|---|
+| `queued` | Waiting to start |
+| `running` | In progress |
+| `completed` | Success |
+| `completed_with_warnings` | Success with non-fatal issues |
+| `failed` | Fatal error — check job errors array |
 
-Jobs are stored in `bug_data_jobs`. Running jobs show progress via `bugCount`, `attachmentCount`, and `historyEntryCount` in the summary.
+## Troubleshooting
 
-## Checking Job Issues
-
-Any errors or warnings on a job are accessible via the issue summary panel in the admin UI. The `getBugDataJobIssueMessages()` helper merges errors and warnings into a flat list.
+- Check `job.errors` and `job.warnings` arrays on a failed job
+- `missingFileCount > 0` in export manifest means some attachment files were not found on disk
+- Invalid rows in import are skipped; details in `validation.rows` filtered by `issues.length > 0`

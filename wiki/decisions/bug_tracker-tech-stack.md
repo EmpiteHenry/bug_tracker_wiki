@@ -3,41 +3,26 @@ type: decision
 owner: engineering
 last_updated: 2026-04-20
 source_count: 3
-tags: [nextjs, typescript, react, tech-stack]
+tags: [nextjs, typescript, postgresql, react]
 status: active
 ---
 
-# ADR-001: Tech Stack Selection
+# ADR: Technology Stack
 
 ## Decision
 
-Use Next.js 16 (App Router) with TypeScript, React 19, Tailwind CSS 4, and PostgreSQL.
+Build the bug tracker as a **Next.js 16 full-stack application** using the App Router, TypeScript, React 19, PostgreSQL, and Tailwind CSS.
 
-## Context
+## Why
 
-The application needs:
-- Authenticated multi-tenant workspace (server-rendered pages + API routes)
-- A single deployable unit covering both UI and backend API
-- Strong typing for correctness across a complex domain model
+- Next.js App Router colocates API routes and UI in one repo, reducing operational complexity for a team-sized product.
+- TypeScript throughout enables shared types between API route handlers and client components without a separate schema layer.
+- PostgreSQL provides relational integrity needed for multi-tenant data (orgs → projects → bugs → history).
+- Tailwind CSS + shadcn/ui (Radix primitives) gives a component library without a large design-system dependency.
 
-## Choices Made
+## Consequences
 
-### Next.js App Router
-Full-stack in one repo. API routes and React Server Components coexist. Reduces infra complexity for a team-sized product.
-
-**Webpack mode** (`--webpack`) used explicitly — `next dev --webpack` and `next build --webpack`. The default Turbopack is not used, likely for plugin compatibility.
-
-### PostgreSQL over SQLite/NoSQL
-Relational model fits the domain (orgs → projects → bugs → comments/attachments/history). PostgreSQL enables complex queries for monitoring, grouping, and audit.
-
-### In-Memory DB for Tests
-`BUG_TRACKER_TEST_DB_BACKEND=memory` lets the default test suite run without Docker. PostgreSQL tests are opt-in via `npm run test:unit:postgres`.
-
-### shadcn/ui + Tailwind CSS 4
-Component primitives from shadcn with Radix UI under the hood. Tailwind 4 for styling.
-
-### Zod 4 for Validation
-Used for schema validation at API boundaries and form inputs.
-
-### SendGrid for Email
-Transactional email via SendGrid. Configurable via env vars; disabled locally when key is absent.
+- **Webpack mode** is explicitly forced (`--webpack` in dev and build scripts), suggesting Turbopack was evaluated and had issues.
+- The MCP SDK dependency (`@modelcontextprotocol/sdk`) ties the project to LLM tooling from the start.
+- No ORM is used — all DB access is raw SQL via `pg`, keeping query control but requiring manual schema management.
+- Dual-database testing (in-memory vs PostgreSQL) adds complexity but enables fast unit test feedback loops.

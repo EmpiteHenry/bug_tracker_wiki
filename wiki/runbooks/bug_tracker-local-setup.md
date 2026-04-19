@@ -3,7 +3,7 @@ type: runbook
 owner: engineering
 last_updated: 2026-04-20
 source_count: 1
-tags: [setup, local-dev, docker, postgresql]
+tags: [setup, local, docker, postgresql, onboarding]
 status: active
 ---
 
@@ -11,77 +11,72 @@ status: active
 
 ## Prerequisites
 
-- Node.js + npm
+- Node.js
+- npm
 - Docker + Docker Compose
 
 ## First-Time Setup
 
 ```bash
 # 1. Clone and enter repo
-cd /path/to/bug_tracker
+cd bug_tracker
 
-# 2. Create env file
+# 2. Copy environment file
 cp .env.example .env
 
 # 3. Install dependencies
 npm install
 
-# 4. Start PostgreSQL
+# 4. Start PostgreSQL via Docker
 docker compose up -d postgres
 
-# 5. Run migrations
+# 5. Apply database migrations
 npm run db:migrate:postgres
 
 # 6. Start dev server
 npm run dev
 ```
 
-Open `http://localhost:3000`.
-
-## Daily Workflow
-
-```bash
-docker compose up -d postgres   # ensure DB is running
-npm run dev                     # start Next.js dev server
-```
+Open http://localhost:3000.
 
 ## Environment Variables
 
-`.env.example` contains all required vars with local defaults. Key vars:
+`.env.example` contains defaults for local PostgreSQL (`127.0.0.1:5432`). Do not change unless you have a reason.
 
-| Var | Purpose |
-|---|---|
-| `DATABASE_URL` (or similar) | PostgreSQL connection string |
-| `SENDGRID_API_KEY` | Leave empty to disable email in dev |
+SendGrid variables can be left empty unless testing email delivery.
 
-## Test Commands
+## Running Tests
 
 ```bash
-npm test                    # fast unit tests (in-memory DB, no Docker needed)
-npm run test:unit:postgres  # unit tests against real PostgreSQL
-npm run typecheck           # TypeScript type checking
-npm run lint                # ESLint
+# Fast unit tests (in-memory DB, no Docker needed)
+npm run test
+
+# PostgreSQL-backed unit tests (requires Docker postgres running)
+npm run test:unit:postgres
+
+# E2E tests (requires seeded test DB)
+npm run test:e2e:seed
+npm run test:e2e
 ```
 
-## E2E Tests
+## Other Useful Commands
 
 ```bash
-npm run dev:playwright      # seed test DB + start on port 3001
-npm run test:e2e            # run Playwright tests
-npm run test:e2e:ui         # Playwright UI mode
+npm run lint          # ESLint
+npm run typecheck     # TypeScript check
+npm run build         # Production build
+npm run start         # Run production server locally
+
+# Tooling
+npm run bugs:cli      # Agent CLI
+npm run alerts:cli    # Alerts CLI
+npm run mcp:server    # MCP server
 ```
 
-## Build & Production Preview
+## Nginx / Domain Setup
 
-```bash
-npm run build
-npm run start
-```
+See `docs/deployment-nginx.md` for reverse-proxy and domain-based access.
 
-## Useful Scripts
+## Observability
 
-```bash
-npm run bugs:cli    # bug agent CLI (tsx scripts/bug-agent-cli.ts)
-npm run alerts:cli  # alerts CLI (tsx scripts/alerts-cli.ts)
-npm run mcp:server  # MCP server for LLM agent integration
-```
+See `docs/observability.md` for structured logging and file output configuration.
