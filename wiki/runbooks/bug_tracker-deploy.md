@@ -3,51 +3,57 @@ type: runbook
 owner: engineering
 last_updated: 2026-04-20
 source_count: 2
-tags: [deployment, nginx, production, aws, ec2]
+tags: [deployment, nginx, production, build]
 status: active
 ---
 
-# Deployment
+# Runbook: Deployment
 
 ## Production Build
 
 ```bash
 npm run build
+```
+
+This runs:
+1. `next build --webpack` — builds the Next.js app
+2. `npm run build:db-worker` — bundles the PostgreSQL worker to `.next/db/postgres-worker.mjs`
+
+## Start Production Server
+
+```bash
 npm run start
 ```
 
-`npm run build` compiles Next.js and also builds the PostgreSQL worker bundle:
-```
-.next/db/postgres-worker.mjs
-```
+Requires `.env` with production PostgreSQL credentials and SendGrid keys.
 
-This worker must be present at runtime; the `predev` script also builds it before `npm run dev`.
-
-## Nginx / Reverse Proxy
-
-See `docs/deployment-nginx.md` for full nginx configuration, including:
-- Domain-based access
-- SSL termination
-- Proxy pass to Next.js
-
-## AWS EC2 Deployment
-
-A PRD for AWS EC2 deployment exists at `tasks/prd-aws-ec2-deployment.md`. Refer to it for planned infrastructure setup.
-
-## Database
-
-Before first run against a new PostgreSQL instance:
+## Apply Migrations on Deploy
 
 ```bash
 npm run db:migrate:postgres
 ```
 
-Bootstrap admin user via `src/lib/db/bootstrap-admin.ts` (run once after migrations).
+Run this against the production database before starting the new server version.
 
-## Environment Variables Required for Production
+## Nginx Reverse Proxy
 
-| Variable | Purpose |
-|---|---|
-| `POSTGRES_*` | PostgreSQL connection |
-| `SENDGRID_API_KEY` | Email delivery |
-| Session secret | Cookie signing (see `session.ts`) |
+For domain-based access and Nginx setup, see:
+```
+docs/deployment-nginx.md
+```
+(in the repository root)
+
+## Observability File Output
+
+Structured NDJSON logs are written to `log/observability.ndjson`. Configure log rotation or shipping from this path. See:
+```
+docs/observability.md
+```
+
+## run.sh
+
+The repository includes a `run.sh` convenience script for production startup. Review its contents before using in a new environment to ensure it matches your deployment target.
+
+## AWS EC2 Deployment
+
+See `tasks/prd-aws-ec2-deployment.md` for the planned EC2 deployment PRD.

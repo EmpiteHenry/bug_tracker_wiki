@@ -2,12 +2,12 @@
 type: runbook
 owner: engineering
 last_updated: 2026-04-20
-source_count: 1
-tags: [setup, local, docker, postgresql, onboarding]
+source_count: 2
+tags: [local-dev, setup, postgresql, docker]
 status: active
 ---
 
-# Local Development Setup
+# Runbook: Local Development Setup
 
 ## Prerequisites
 
@@ -18,65 +18,85 @@ status: active
 ## First-Time Setup
 
 ```bash
-# 1. Clone and enter repo
-cd bug_tracker
-
-# 2. Copy environment file
-cp .env.example .env
-
-# 3. Install dependencies
+# 1. Clone the repository and install dependencies
 npm install
 
-# 4. Start PostgreSQL via Docker
+# 2. Create local environment file
+cp .env.example .env
+
+# 3. Start local PostgreSQL container
 docker compose up -d postgres
 
-# 5. Apply database migrations
+# 4. Apply database migrations
 npm run db:migrate:postgres
 
-# 6. Start dev server
+# 5. Start the development server
 npm run dev
 ```
 
-Open http://localhost:3000.
+Open `http://localhost:3000`.
 
-## Environment Variables
+## Environment Variables (`.env.example`)
 
-`.env.example` contains defaults for local PostgreSQL (`127.0.0.1:5432`). Do not change unless you have a reason.
+```
+POSTGRES_HOST=127.0.0.1
+POSTGRES_PORT=5432
+POSTGRES_DB=bug_tracker
+POSTGRES_USER=<set in example>
+POSTGRES_PASSWORD=<set in example>
+# SendGrid vars — leave empty for basic local dev
+```
 
-SendGrid variables can be left empty unless testing email delivery.
+Do not change PostgreSQL defaults unless you have a specific reason.
 
-## Running Tests
+## Day-to-Day Commands
+
+| Command | When to use |
+|---|---|
+| `npm run dev` | Start dev server (runs `build:db-worker` first via predev hook) |
+| `npm run db:migrate:postgres` | After pulling new migrations |
+| `npm run test` | Run fast unit tests (in-memory DB, no Docker needed) |
+| `npm run test:unit:postgres` | Run DB-specific tests (requires Docker postgres running) |
+| `npm run lint` | ESLint check |
+| `npm run typecheck` | Full TypeScript type check |
+| `npm run build` | Production build |
+| `npm run start` | Run production server (after build) |
+
+## Running E2E Tests
 
 ```bash
-# Fast unit tests (in-memory DB, no Docker needed)
-npm run test
+# Seed test database and start dev server on port 3001
+npm run dev:playwright
 
-# PostgreSQL-backed unit tests (requires Docker postgres running)
-npm run test:unit:postgres
-
-# E2E tests (requires seeded test DB)
-npm run test:e2e:seed
+# In another terminal, run Playwright tests
 npm run test:e2e
+
+# With UI
+npm run test:e2e:ui
 ```
 
-## Other Useful Commands
+## Running CLI Tools
 
 ```bash
-npm run lint          # ESLint
-npm run typecheck     # TypeScript check
-npm run build         # Production build
-npm run start         # Run production server locally
+# Bug agent CLI
+npm run bugs:cli
 
-# Tooling
-npm run bugs:cli      # Agent CLI
-npm run alerts:cli    # Alerts CLI
-npm run mcp:server    # MCP server
+# Alerts CLI
+npm run alerts:cli
+
+# MCP server
+npm run mcp:server
 ```
 
-## Nginx / Domain Setup
+## Local CI
 
-See `docs/deployment-nginx.md` for reverse-proxy and domain-based access.
+```bash
+npm run ci          # Full CI suite
+npm run ci:quick    # Skip slow checks
+npm run ci:e2e      # CI with e2e tests
+```
 
-## Observability
+## Related Docs
 
-See `docs/observability.md` for structured logging and file output configuration.
+- [Deployment with Nginx](../systems/bug_tracker/deployment/nginx.md) — reverse proxy setup
+- [Observability](../systems/bug_tracker/monitoring/observability.md) — log configuration

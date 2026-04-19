@@ -6361,3 +6361,1312 @@ Committed: swiki repo sync: 1 repo(s) updated 2026-04-20
 [SWIKI:PROGRESS] {"phase":"done","synced":1,"total":1}
 [2026-04-20 08:11:35] exit 0 (success)
 
+[2026-04-20 08:08:42] $ /usr/local/bin/swiki ingest --wiki /Users/henrysmith/Empite/bug_tracker_wiki
+Syncing all linked repos in wiki: /Users/henrysmith/Empite/bug_tracker_wiki
+
+Resuming previous ingest (checkpoint found at 2026-04-20 08:08:37)
+
+[SWIKI:PROGRESS] {"phase":"start","resume":true,"total":1}
+📄 bug_tracker — raw sources changed, re-ingesting...
+[SWIKI:PROGRESS] {"index":0,"name":"bug_tracker","phase":"repo","reason":"raw-changed","status":"ingesting","total":1}
+[SWIKI:PROGRESS] {"index":0,"name":"shared/agent_bugtracker copy.md","phase":"rawfile","repo":"bug_tracker","total":1}
+[SWIKI:PROGRESS] {"files":["shared/agent_bugtracker copy.md"],"phase":"rawfiles","repo":"bug_tracker"}
+[SWIKI:CLAUDE_START] Calling Claude for bug_tracker...
+[CLAUDE] === FILE: wiki/systems/bug_tracker/overview.md ===
+[CLAUDE] ---
+[CLAUDE] type: system
+[CLAUDE] owner: engineering
+[CLAUDE] last_updated: 2026-04-20
+[CLAUDE] source_count: 45
+[CLAUDE] tags: [nextjs, typescript, postgresql, bug-tracking, multi-tenant]
+[CLAUDE] status: active
+[CLAUDE] ---
+[CLAUDE] 
+[CLAUDE] # Bug Tracker — System Overview
+[CLAUDE] 
+[CLAUDE] A Next.js 16 full-stack application for authenticated teams to capture, triage, and manage software issues. Supports multi-tenant organizations, project-level access control, AI agent integration, a Chrome extension, and an MCP server interface.
+[CLAUDE] 
+[CLAUDE] ## High-Level Architecture
+[CLAUDE] 
+[CLAUDE] ```
+[CLAUDE] Browser (React/Next.js)
+[CLAUDE]     │
+[CLAUDE]     ├── App Router pages  (/app/(authenticated)/...)
+[CLAUDE]     │       └── Client components, server components, filter logic
+[CLAUDE]     │
+[CLAUDE]     └── API Routes  (/app/api/...)
+[CLAUDE]             ├── /auth/*          — session auth, signup, password flows
+[CLAUDE]             ├── /bugs/*          — CRUD, comments, attachments, history
+[CLAUDE]             ├── /organizations/* — multi-tenant org management
+[CLAUDE]             ├── /projects/*      — project + section management
+[CLAUDE]             ├── /invitations/*   — org invite flows
+[CLAUDE]             ├── /settings/*      — API keys, JWT, access config
+[CLAUDE]             ├── /extension/*     — Chrome extension auth + bug submit
+[CLAUDE]             ├── /agent/*         — agent API (claim, update, list bugs)
+[CLAUDE]             └── /admin/*         — admin-only: users, monitoring, alerts, notifications
+[CLAUDE] ```
+[CLAUDE] 
+[CLAUDE] ## Core Layers
+[CLAUDE] 
+[CLAUDE] | Layer | Path | Responsibility |
+[CLAUDE] |---|---|---|
+[CLAUDE] | Pages / UI | `src/app/(authenticated)/` | Route segments, React panels, client-side filter state |
+[CLAUDE] | API Routes | `src/app/api/` | HTTP handlers, request validation, response shaping |
+[CLAUDE] | Services | `src/lib/*/\*-service.ts` | Business logic, orchestration |
+[CLAUDE] | Stores | `src/lib/*/\*-store.ts` | Database queries, data access |
+[CLAUDE] | DB Client | `src/lib/db/` | PostgreSQL + in-memory adapters, migrations, schema |
+[CLAUDE] 
+[CLAUDE] ## Key Subsystems
+[CLAUDE] 
+[CLAUDE] - [Auth](./auth.md) — session cookies, email verification, password reset, JWT
+[CLAUDE] - [Bugs](./bugs.md) — bug lifecycle, comments, attachments, history, bulk ops, import/export
+[CLAUDE] - [Organizations & Projects](./organizations.md) — multi-tenancy, invitations, billing seats
+[CLAUDE] - [Notifications](./notifications.md) — SendGrid email dispatch with templates
+[CLAUDE] - [Monitoring](./monitoring.md) — operational logs, error grouping, alerts, performance
+[CLAUDE] - [Agent Integration](./agent-integration.md) — agent API, CLI, MCP server, coordination notes
+[CLAUDE] - [Chrome Extension](./chrome-extension.md) — header-auth extension API, evidence upload
+[CLAUDE] - [Admin Panel](./admin.md) — admin surfaces for all above subsystems
+[CLAUDE] 
+[CLAUDE] ## Tech Stack
+[CLAUDE] 
+[CLAUDE] - **Runtime**: Node.js, Next.js 16 (App Router, webpack mode)
+[CLAUDE] - **Language**: TypeScript 5
+[CLAUDE] - **Database**: PostgreSQL (production), in-memory (unit tests)
+[CLAUDE] - **UI**: React 19, Tailwind CSS 4, shadcn/ui, Radix primitives
+[CLAUDE] - **Email**: SendGrid
+[CLAUDE] - **AI/Agent**: MCP SDK (`@modelcontextprotocol/sdk`), custom agent CLI
+[CLAUDE] - **Validation**: Runtime type guards (no schema library in API routes)
+[CLAUDE] - **Testing**: Node built-in test runner; Playwright for E2E
+[CLAUDE] 
+[CLAUDE] ## Entry Points
+[CLAUDE] 
+[CLAUDE] | Purpose | Command |
+[CLAUDE] |---|---|
+[CLAUDE] | Dev server | `npm run dev` |
+[CLAUDE] | Production build | `npm run build` |
+[CLAUDE] | DB migrations | `npm run db:migrate:postgres` |
+[CLAUDE] | Unit tests (in-memory) | `npm run test` |
+[CLAUDE] | Unit tests (postgres) | `npm run test:unit:postgres` |
+[CLAUDE] | E2E tests | `npm run test:e2e` |
+[CLAUDE] | Agent CLI | `npm run bugs:cli` |
+[CLAUDE] | Alerts CLI | `npm run alerts:cli` |
+[CLAUDE] | MCP server | `npm run mcp:server` |
+[CLAUDE] 
+[CLAUDE] === END FILE ===
+[CLAUDE] 
+[CLAUDE] === FILE: wiki/systems/bug_tracker/auth.md ===
+[CLAUDE] ---
+[CLAUDE] type: system
+[CLAUDE] owner: engineering
+[CLAUDE] last_updated: 2026-04-20
+[CLAUDE] source_count: 12
+[CLAUDE] tags: [auth, session, password, email-verification, jwt]
+[CLAUDE] status: active
+[CLAUDE] ---
+[CLAUDE] 
+[CLAUDE] # Authentication System
+[CLAUDE] 
+[CLAUDE] ## Session Model
+[CLAUDE] 
+[CLAUDE] Sessions are cookie-based. The cookie name and expiry are controlled by `src/lib/auth/session.ts` (`getSessionCookieName`, `getSessionExpirationDate`, `getSessionMaxAgeSeconds`).
+[CLAUDE] 
+[CLAUDE] On login (`POST /api/auth/login`), the server sets an HTTP-only session cookie. On logout (`POST /api/auth/logout`), the token is deleted from the database and the cookie is cleared.
+[CLAUDE] 
+[CLAUDE] Two session extraction helpers exist:
+[CLAUDE] - `getAuthenticatedSessionFromRequest` — reads the session cookie (browser app)
+[CLAUDE] - `getAuthenticatedSessionFromExtensionRequest` — reads from request headers (Chrome extension)
+[CLAUDE] 
+[CLAUDE] ## Auth Service Guards
+[CLAUDE] 
+[CLAUDE] All protected API routes call one of:
+[CLAUDE] 
+[CLAUDE] | Guard | File | Use |
+[CLAUDE] |---|---|---|
+[CLAUDE] | `requireAuthenticatedUser` | `auth-service.ts` | Any logged-in user |
+[CLAUDE] | `requireAdminUser` | `auth-service.ts` | Admin-only routes |
+[CLAUDE] | `requireAgentApiUser` | `agent-api.ts` | Agent API key auth |
+[CLAUDE] | `requireExtensionAuthenticatedUser` | `auth-service.ts` | Extension header auth |
+[CLAUDE] 
+[CLAUDE] These throw `AuthenticationError` on failure; API routes catch this and return 401.
+[CLAUDE] 
+[CLAUDE] ## Auth Flows
+[CLAUDE] 
+[CLAUDE] ### Signup
+[CLAUDE] `POST /api/auth/signup` → `registerUserWithOrganization` → `sendSignupNotificationsFromDatabase`
+[CLAUDE] 
+[CLAUDE] Creates the user, creates their organization, sets session cookie, fires welcome + verification emails.
+[CLAUDE] 
+[CLAUDE] ### Email Verification
+[CLAUDE] `POST /api/auth/verify-email` → `verifyEmailAddressFromTokenInDatabase`
+[CLAUDE] 
+[CLAUDE] Token-based; token stored in `auth-action-token-store.ts`.
+[CLAUDE] 
+[CLAUDE] ### Forgot Password
+[CLAUDE] `POST /api/auth/forgot-password` → `sendForgotPasswordNotificationFromDatabase`
+[CLAUDE] 
+[CLAUDE] Always returns 200 to avoid email enumeration.
+[CLAUDE] 
+[CLAUDE] ### Reset Password
+[CLAUDE] `POST /api/auth/reset-password` → `completePasswordResetFromTokenInDatabase`
+[CLAUDE] 
+[CLAUDE] Validates token from `auth-action-token-store`, hashes and updates password via `reset-password-service.ts`.
+[CLAUDE] 
+[CLAUDE] ### Change Password
+[CLAUDE] `POST /api/auth/change-password` → `changeAuthenticatedUserPasswordInDatabase`
+[CLAUDE] 
+[CLAUDE] Requires current password; uses `change-password-service.ts`. Sends notification email on success.
+[CLAUDE] 
+[CLAUDE] ## Password Hashing
+[CLAUDE] 
+[CLAUDE] `src/lib/auth/password.ts` — utility for hashing and comparing passwords.
+[CLAUDE] 
+[CLAUDE] ## Related Files
+[CLAUDE] 
+[CLAUDE] ```
+[CLAUDE] src/lib/auth/
+[CLAUDE] ├── auth-service.ts              — core auth logic, session guards
+[CLAUDE] ├── auth-user-store.ts           — user DB queries
+[CLAUDE] ├── auth-action-token-store.ts   — email action tokens (verify, reset)
+[CLAUDE] ├── auth-notification-service.ts — signup/change-password emails
+[CLAUDE] ├── session.ts                   — cookie name/expiry config
+[CLAUDE] ├── password.ts                  — hash + compare
+[CLAUDE] ├── email-verification-service.ts
+[CLAUDE] ├── forgot-password-service.ts
+[CLAUDE] ├── reset-password-service.ts
+[CLAUDE] └── change-password-service.ts
+[CLAUDE] ```
+[CLAUDE] 
+[CLAUDE] === END FILE ===
+[CLAUDE] 
+[CLAUDE] === FILE: wiki/systems/bug_tracker/bugs.md ===
+[CLAUDE] ---
+[CLAUDE] type: system
+[CLAUDE] owner: engineering
+[CLAUDE] last_updated: 2026-04-20
+[CLAUDE] source_count: 18
+[CLAUDE] tags: [bugs, attachments, comments, history, import, export]
+[CLAUDE] status: active
+[CLAUDE] ---
+[CLAUDE] 
+[CLAUDE] # Bug Management System
+[CLAUDE] 
+[CLAUDE] ## Bug Lifecycle
+[CLAUDE] 
+[CLAUDE] Bugs move through statuses: `New → Triaged → In Progress → Ready for QA → Closed`.
+[CLAUDE] 
+[CLAUDE] Bugs belong to a **project** and optionally a **section** within that project. They can be archived without closing.
+[CLAUDE] 
+[CLAUDE] ## API Surface
+[CLAUDE] 
+[CLAUDE] | Method | Path | Description |
+[CLAUDE] |---|---|---|
+[CLAUDE] | GET | `/api/bugs` | List bugs (filter by project, status, reporter, date range, sort) |
+[CLAUDE] | POST | `/api/bugs` | Create bug |
+[CLAUDE] | GET | `/api/bugs/[bugId]` | Get bug detail |
+[CLAUDE] | PATCH | `/api/bugs/[bugId]` | Update bug fields |
+[CLAUDE] | PATCH | `/api/bugs/bulk` | Bulk status update |
+[CLAUDE] | GET | `/api/bugs/[bugId]/comments` | List comments |
+[CLAUDE] | POST | `/api/bugs/[bugId]/comments` | Add comment |
+[CLAUDE] | POST | `/api/bugs/[bugId]/attachments` | Upload attachment |
+[CLAUDE] | GET | `/api/bugs/[bugId]/attachments/[id]` | Download attachment |
+[CLAUDE] | DELETE | `/api/bugs/[bugId]/attachments/[id]` | Delete attachment |
+[CLAUDE] | GET | `/api/bugs/[bugId]/history` | Bug change history (admin only) |
+[CLAUDE] 
+[CLAUDE] ## Filter State
+[CLAUDE] 
+[CLAUDE] `src/app/(authenticated)/bugs/all-bugs-filters.ts` manages client-side filter state and URL serialization.
+[CLAUDE] 
+[CLAUDE] Sort fields: `createdAt`, `updatedAt`, `status`, `project`.  
+[CLAUDE] Sort directions: `asc`, `desc` (default: `desc` by `createdAt`).
+[CLAUDE] 
+[CLAUDE] Filter validation throws descriptive errors surfaced in the UI before any API call.
+[CLAUDE] 
+[CLAUDE] ## Bug History
+[CLAUDE] 
+[CLAUDE] Every mutation to a bug is recorded as a timeline entry in `bug-history-store.ts`. Each entry captures:
+[CLAUDE] - `eventType` (e.g. `bug_created`, `bug_status_changed`, `bug_import_created`)
+[CLAUDE] - `changedFields` — array of `{ field, previousValue, nextValue }`
+[CLAUDE] 
+[CLAUDE] Helper `getBugHistoryEntrySource` distinguishes user edits, import operations, and system events.
+[CLAUDE] 
+[CLAUDE] ## Attachments
+[CLAUDE] 
+[CLAUDE] Files are stored via `attachmentStorage` (`src/lib/storage/attachment-storage.ts`). The store layer (`attachment-store.ts`) records metadata. Retrieval streams the file from disk.
+[CLAUDE] 
+[CLAUDE] ## Comments
+[CLAUDE] 
+[CLAUDE] Comments have a `visibility` field (public/internal). Both the comment list and creation require an active organization session.
+[CLAUDE] 
+[CLAUDE] ## Data Import / Export
+[CLAUDE] 
+[CLAUDE] Managed as async jobs tracked in `bug-data-job-store.ts`.
+[CLAUDE] 
+[CLAUDE] **Import flow**: validate CSV → create job → run import → record created/updated/skipped/failed counts  
+[CLAUDE] **Export flow**: create job → serialize bugs + history + attachments → write zip → record manifest
+[CLAUDE] 
+[CLAUDE] Job statuses: `queued → running → completed | completed_with_warnings | failed`
+[CLAUDE] 
+[CLAUDE] Duplicate strategies on import: `skip_existing` or `update_existing`.
+[CLAUDE] 
+[CLAUDE] See type definitions in `src/app/(authenticated)/admin/bug-data/bug-data-management-panel.helpers.ts`.
+[CLAUDE] 
+[CLAUDE] ## Key Files
+[CLAUDE] 
+[CLAUDE] ```
+[CLAUDE] src/lib/bugs/
+[CLAUDE] ├── bug-service.ts               — core CRUD, list, bulk update
+[CLAUDE] ├── bug-comment-service.ts       — comment creation and listing
+[CLAUDE] ├── bug-history-service.ts       — timeline generation
+[CLAUDE] ├── bug-data-import-service.ts   — CSV import logic
+[CLAUDE] ├── bug-data-export-service.ts   — export/zip generation
+[CLAUDE] ├── bug-data-job-store.ts        — async job tracking
+[CLAUDE] ├── attachment-store.ts          — attachment metadata
+[CLAUDE] └── errors.ts                    — BugServiceError
+[CLAUDE] ```
+[CLAUDE] 
+[CLAUDE] === END FILE ===
+[CLAUDE] 
+[CLAUDE] === FILE: wiki/systems/bug_tracker/organizations.md ===
+[CLAUDE] ---
+[CLAUDE] type: system
+[CLAUDE] owner: engineering
+[CLAUDE] last_updated: 2026-04-20
+[CLAUDE] source_count: 10
+[CLAUDE] tags: [organizations, projects, multi-tenant, invitations, billing]
+[CLAUDE] status: active
+[CLAUDE] ---
+[CLAUDE] 
+[CLAUDE] # Organizations & Projects
+[CLAUDE] 
+[CLAUDE] ## Multi-Tenancy Model
+[CLAUDE] 
+[CLAUDE] The app is multi-tenant at the organization level. Each user belongs to one or more organizations. All data (bugs, projects, notifications) is scoped to an organization.
+[CLAUDE] 
+[CLAUDE] The active organization for a request is resolved via `requireActiveOrganizationSession` (`src/lib/organizations/active-organization-session.ts`), which reads a stored active-org preference from the session.
+[CLAUDE] 
+[CLAUDE] Users can switch organizations via the `OrganizationSwitcher` component.
+[CLAUDE] 
+[CLAUDE] ## Organization Membership
+[CLAUDE] 
+[CLAUDE] - Users are members of organizations with a role.
+[CLAUDE] - `organization-membership-service.ts` handles adding/removing members.
+[CLAUDE] - `organization-access-service.ts` exposes `requireOrganizationAdminAccessForUser` for admin-gated operations.
+[CLAUDE] - `organization-seat-service.ts` enforces seat limits tied to billing plan.
+[CLAUDE] 
+[CLAUDE] ## Invitations
+[CLAUDE] 
+[CLAUDE] 1. Admin sends invite → `organization-invitation-service.ts` creates a record + `organization-invitation-email-service.ts` sends email.
+[CLAUDE] 2. Invitee lands on `/invitations/[invitationId]` → sees invitation landing page.
+[CLAUDE] 3. Invitee activates → `organization-invitation-activation-service.ts` creates/links their account.
+[CLAUDE] 
+[CLAUDE] Token is embedded in the invitation URL. Logic in `src/app/invitations/[invitationId]/invitation-landing-content.ts`.
+[CLAUDE] 
+[CLAUDE] ## Projects
+[CLAUDE] 
+[CLAUDE] Projects are created by admins and scoped to an organization. Each project can have **sections** (ordered groupings of bugs).
+[CLAUDE] 
+[CLAUDE] | API | Description |
+[CLAUDE] |---|---|
+[CLAUDE] | `GET /api/admin/projects` | List all projects |
+[CLAUDE] | `POST /api/admin/projects` | Create project |
+[CLAUDE] | `PATCH /api/admin/projects/[id]` | Update (name, key, description, archive) |
+[CLAUDE] | `GET /api/admin/projects/[id]/sections` | List sections |
+[CLAUDE] | `POST /api/admin/projects/[id]/sections` | Create section |
+[CLAUDE] | `PATCH /api/admin/projects/[id]/sections/[sid]` | Update section (name, order, archive) |
+[CLAUDE] 
+[CLAUDE] Project access for non-admin users is controlled by `project-membership-service.ts`. The context helper `src/app/(authenticated)/project-access-context.ts` generates UI copy for unauthorized states.
+[CLAUDE] 
+[CLAUDE] ## Billing
+[CLAUDE] 
+[CLAUDE] `organization-billing-service.ts` manages subscription state. `billing-ui.ts` drives UI visibility rules based on plan. Seat enforcement happens in `organization-seat-service.ts` before invitations are accepted.
+[CLAUDE] 
+[CLAUDE] === END FILE ===
+[CLAUDE] 
+[CLAUDE] === FILE: wiki/systems/bug_tracker/notifications.md ===
+[CLAUDE] ---
+[CLAUDE] type: system
+[CLAUDE] owner: engineering
+[CLAUDE] last_updated: 2026-04-20
+[CLAUDE] source_count: 8
+[CLAUDE] tags: [notifications, email, sendgrid, templates]
+[CLAUDE] status: active
+[CLAUDE] ---
+[CLAUDE] 
+[CLAUDE] # Notification System
+[CLAUDE] 
+[CLAUDE] ## Architecture
+[CLAUDE] 
+[CLAUDE] ```
+[CLAUDE] Bug Event
+[CLAUDE]     │
+[CLAUDE]     ▼
+[CLAUDE] bug-notification-event-service.ts   — creates a notification event record
+[CLAUDE]     │
+[CLAUDE]     ▼
+[CLAUDE] bug-recipient-service.ts            — resolves who should receive this event
+[CLAUDE]     │
+[CLAUDE]     ▼
+[CLAUDE] notification-dispatcher.ts          — dispatches to delivery channels
+[CLAUDE]     │
+[CLAUDE]     ▼
+[CLAUDE] sendgrid-delivery.ts                — sends via SendGrid API
+[CLAUDE]     │
+[CLAUDE]     ▼
+[CLAUDE] notification-store.ts               — records delivery attempt + status
+[CLAUDE] ```
+[CLAUDE] 
+[CLAUDE] ## Event Types
+[CLAUDE] 
+[CLAUDE] Bug lifecycle events that trigger notifications:
+[CLAUDE] 
+[CLAUDE] | Event | Template |
+[CLAUDE] |---|---|
+[CLAUDE] | Bug created | `bug-created.html` |
+[CLAUDE] | Bug assigned | `bug-assigned.html` |
+[CLAUDE] | Bug status changed | `bug-status-changed.html` |
+[CLAUDE] | Bug closed | `bug-closed.html` |
+[CLAUDE] | Bug reopened | `bug-reopened.html` |
+[CLAUDE] | Comment added | `bug-comment.html` |
+[CLAUDE] 
+[CLAUDE] Auth events:
+[CLAUDE] 
+[CLAUDE] | Event | Template |
+[CLAUDE] |---|---|
+[CLAUDE] | Signup | `welcome.html` |
+[CLAUDE] | Email verification | `verification.html` |
+[CLAUDE] | Forgot password | `forgot-password.html` |
+[CLAUDE] | Password reset complete | `password-reset-complete.html` |
+[CLAUDE] | Password changed | `password-changed.html` |
+[CLAUDE] | Org invitation | `organization-invitation.html` |
+[CLAUDE] 
+[CLAUDE] ## Template Engine
+[CLAUDE] 
+[CLAUDE] `template-engine.ts` renders HTML templates in `src/lib/notifications/templates/`. All templates extend `base-layout.html`.
+[CLAUDE] 
+[CLAUDE] `email-template-registry.ts` maps event types to their template files and subject lines.
+[CLAUDE] 
+[CLAUDE] ## Admin Controls
+[CLAUDE] 
+[CLAUDE] Admins can:
+[CLAUDE] - View delivery history: `GET /api/admin/notifications/deliveries`
+[CLAUDE] - Retry a failed delivery: `POST /api/admin/notifications/deliveries/[id]/retry`
+[CLAUDE] - View/update notification settings (which events send to which recipient groups): `GET|PATCH /api/admin/notifications/settings`
+[CLAUDE] - Retry a failed event: `POST /api/admin/notifications/events/[id]/retry`
+[CLAUDE] 
+[CLAUDE] ## Configuration
+[CLAUDE] 
+[CLAUDE] SendGrid API key is set via environment variable. Leave empty for local dev unless testing email flows.
+[CLAUDE] 
+[CLAUDE] === END FILE ===
+[CLAUDE] 
+[CLAUDE] === FILE: wiki/systems/bug_tracker/monitoring.md ===
+[CLAUDE] ---
+[CLAUDE] type: system
+[CLAUDE] owner: engineering
+[CLAUDE] last_updated: 2026-04-20
+[CLAUDE] source_count: 12
+[CLAUDE] tags: [monitoring, observability, alerts, performance, logging]
+[CLAUDE] status: active
+[CLAUDE] ---
+[CLAUDE] 
+[CLAUDE] # Monitoring & Observability
+[CLAUDE] 
+[CLAUDE] ## Request Observability
+[CLAUDE] 
+[CLAUDE] Every API route is wrapped with `withRequestObservability(method, handler)` from `src/lib/monitoring/request-observability.ts`. This middleware records:
+[CLAUDE] - HTTP method, path, status code
+[CLAUDE] - Duration
+[CLAUDE] - Errors (with fingerprint for grouping)
+[CLAUDE] 
+[CLAUDE] Output goes to `operational-log-store.ts` (DB) and optionally `observability-file-sink.ts` (NDJSON file at `log/observability.ndjson`).
+[CLAUDE] 
+[CLAUDE] Page load events are tracked via `page-load-observability.ts` and the `PageLoadObservability` component, reported to `POST /api/observability/page-load`.
+[CLAUDE] 
+[CLAUDE] ## Operational Logs
+[CLAUDE] 
+[CLAUDE] Admin endpoint: `GET /api/admin/logs`
+[CLAUDE] 
+[CLAUDE] Queryable by severity: `debug | info | warn | error | critical`  
+[CLAUDE] Results are paginated (`PaginatedLogQueryOptions`).
+[CLAUDE] 
+[CLAUDE] ## Error Grouping
+[CLAUDE] 
+[CLAUDE] Errors are fingerprinted via `error-fingerprint.ts` and grouped by `grouped-errors-service.ts`.
+[CLAUDE] 
+[CLAUDE] Admin endpoints:
+[CLAUDE] - `GET /api/admin/errors` — grouped error summary (severity filter: `error | critical`)
+[CLAUDE] - `PATCH /api/admin/errors/[fingerprint]/bug` — link an error group to an existing bug
+[CLAUDE] 
+[CLAUDE] ## Operational Alerts
+[CLAUDE] 
+[CLAUDE] Alerts are raised when monitored conditions breach thresholds.
+[CLAUDE] 
+[CLAUDE] | API | Description |
+[CLAUDE] |---|---|
+[CLAUDE] | `GET /api/admin/alerts` | List alerts (filter by severity, status, source, date range, limit) |
+[CLAUDE] | `GET /api/admin/alerts/[id]` | Alert detail |
+[CLAUDE] | `PATCH /api/admin/alerts/[id]` | Update alert status |
+[CLAUDE] | `POST /api/admin/alerts/[id]/bugs` | Create a bug from an alert |
+[CLAUDE] 
+[CLAUDE] Alert statuses and the alert CLI are implemented in `operational-alert-service.ts` and `operational-alert-cli.ts`.
+[CLAUDE] 
+[CLAUDE] ## Performance Tracking
+[CLAUDE] 
+[CLAUDE] - **Endpoint performance**: `GET /api/admin/performance/endpoints` — latency by endpoint over a configurable window
+[CLAUDE] - **Org usage stats**: `GET /api/admin/performance/org-usage` — per-organization usage metrics
+[CLAUDE] 
+[CLAUDE] Both call services in `src/lib/monitoring/`.
+[CLAUDE] 
+[CLAUDE] ## Dashboard Summary
+[CLAUDE] 
+[CLAUDE] `GET /api/admin/dashboard/summary` returns aggregated counts (bugs, alerts, errors) for the admin dashboard home.
+[CLAUDE] 
+[CLAUDE] ## Data Redaction
+[CLAUDE] 
+[CLAUDE] `observability-redaction.ts` strips sensitive fields (passwords, tokens) from log payloads before persistence.
+[CLAUDE] 
+[CLAUDE] === END FILE ===
+[CLAUDE] 
+[CLAUDE] === FILE: wiki/systems/bug_tracker/agent-integration.md ===
+[CLAUDE] ---
+[CLAUDE] type: system
+[CLAUDE] owner: engineering
+[CLAUDE] last_updated: 2026-04-20
+[CLAUDE] source_count: 6
+[CLAUDE] tags: [agent, mcp, cli, automation, coordination]
+[CLAUDE] status: active
+[CLAUDE] ---
+[CLAUDE] 
+[CLAUDE] # Agent Integration
+[CLAUDE] 
+[CLAUDE] ## Overview
+[CLAUDE] 
+[CLAUDE] The bug tracker exposes three agent interfaces:
+[CLAUDE] 1. **REST Agent API** — HTTP endpoints under `/api/agent/`
+[CLAUDE] 2. **Agent CLI** — `npm run bugs:cli` (scripts via `tsx scripts/bug-agent-cli.ts`)
+[CLAUDE] 3. **MCP Server** — `npm run mcp:server` (Model Context Protocol for LLM tooling)
+[CLAUDE] 
+[CLAUDE] ## Agent REST API
+[CLAUDE] 
+[CLAUDE] All agent routes use `requireAgentApiUser` for authentication (API key, not session cookie).
+[CLAUDE] 
+[CLAUDE] | Method | Path | Description |
+[CLAUDE] |---|---|---|
+[CLAUDE] | GET | `/api/agent/bugs` | List claimable (unassigned, open) bugs |
+[CLAUDE] | GET | `/api/agent/bugs/[bugId]` | Get bug detail |
+[CLAUDE] | POST | `/api/agent/bugs/[bugId]/claim` | Claim a bug (set `claimedBy`) |
+[CLAUDE] | PATCH | `/api/agent/bugs/[bugId]/status` | Update agent work state + status note |
+[CLAUDE] 
+[CLAUDE] ### Claim Request Body
+[CLAUDE] ```json
+[CLAUDE] { "claimedBy": "agent-name" }
+[CLAUDE] ```
+[CLAUDE] 
+[CLAUDE] ### Status Update Body
+[CLAUDE] ```json
+[CLAUDE] {
+[CLAUDE]   "claimedBy": "agent-name",
+[CLAUDE]   "state": "in_progress | completed | ...",
+[CLAUDE]   "statusNote": "optional string"
+[CLAUDE] }
+[CLAUDE] ```
+[CLAUDE] 
+[CLAUDE] Helper functions in `src/lib/bugs/agent-api.ts`:
+[CLAUDE] - `parseAgentBugId` — validates and parses bug ID from route params
+[CLAUDE] - `createAgentApiSuccessResponse` / `createAgentApiErrorResponse`
+[CLAUDE] - `handleAgentApiError` — maps service errors to HTTP responses
+[CLAUDE] 
+[CLAUDE] ## Agent CLI
+[CLAUDE] 
+[CLAUDE] `src/lib/bugs/agent-cli.ts` implements a CLI mode for scripted agent workflows (fetch, claim, update bugs from terminal). Run via `npm run bugs:cli`.
+[CLAUDE] 
+[CLAUDE] ## MCP Server
+[CLAUDE] 
+[CLAUDE] `src/lib/bugs/mcp-server.ts` exposes bug tracker operations as MCP tools, enabling LLM clients that speak the Model Context Protocol to interact with bugs directly. Run via `npm run mcp:server`.
+[CLAUDE] 
+[CLAUDE] ## Multi-Agent Coordination
+[CLAUDE] 
+[CLAUDE] From raw source notes (`shared/agent_bugtracker copy.md`):
+[CLAUDE] 
+[CLAUDE] > Agent should be automated and if multiple agents working on this it should coordinate with others how to perform its task.
+[CLAUDE] 
+[CLAUDE] The claim mechanism (`POST /api/agent/bugs/[bugId]/claim` with `claimedBy`) is the primary coordination primitive — agents claim bugs before working on them to prevent duplicate work. See [open question on agent coordination](../../open-questions/bug_tracker-agent-coordination.md) for unresolved design gaps.
+[CLAUDE] 
+[CLAUDE] ## Agent Integration Files
+[CLAUDE] 
+[CLAUDE] ```
+[CLAUDE] src/lib/bugs/
+[CLAUDE] ├── agent-api.ts           — shared auth + response helpers
+[CLAUDE] ├── agent-cli.ts           — CLI interface
+[CLAUDE] ├── agent-integration.ts   — shared integration utilities
+[CLAUDE] └── mcp-server.ts          — MCP server entry point
+[CLAUDE] ```
+[CLAUDE] 
+[CLAUDE] === END FILE ===
+[CLAUDE] 
+[CLAUDE] === FILE: wiki/systems/bug_tracker/chrome-extension.md ===
+[CLAUDE] ---
+[CLAUDE] type: system
+[CLAUDE] owner: engineering
+[CLAUDE] last_updated: 2026-04-20
+[CLAUDE] source_count: 4
+[CLAUDE] tags: [chrome-extension, browser-extension, evidence, auth]
+[CLAUDE] status: active
+[CLAUDE] ---
+[CLAUDE] 
+[CLAUDE] # Chrome Extension
+[CLAUDE] 
+[CLAUDE] ## Overview
+[CLAUDE] 
+[CLAUDE] A browser extension (`extension/`) that lets users submit bugs and attach evidence (screenshots/recordings) directly from their browser without switching to the main app.
+[CLAUDE] 
+[CLAUDE] ## Extension Files
+[CLAUDE] 
+[CLAUDE] ```
+[CLAUDE] extension/
+[CLAUDE] ├── manifest.json    — Chrome extension manifest
+[CLAUDE] ├── popup.html       — Extension popup UI
+[CLAUDE] ├── popup.css        — Popup styles
+[CLAUDE] └── popup.js         — Popup logic (calls extension API)
+[CLAUDE] ```
+[CLAUDE] 
+[CLAUDE] A dedicated page at `/chrome-extension` provides installation instructions.
+[CLAUDE] 
+[CLAUDE] ## Extension API
+[CLAUDE] 
+[CLAUDE] Extension requests use header-based authentication (not session cookies). The server reads auth from headers via `getAuthenticatedSessionFromExtensionRequest`.
+[CLAUDE] 
+[CLAUDE] | Method | Path | Description |
+[CLAUDE] |---|---|---|
+[CLAUDE] | POST | `/api/extension/auth/login` | Authenticate and get token |
+[CLAUDE] | POST | `/api/extension/auth/logout` | Invalidate token |
+[CLAUDE] | GET | `/api/extension/auth/session` | Validate current token |
+[CLAUDE] | GET | `/api/extension/projects` | List available projects |
+[CLAUDE] | POST | `/api/extension/bugs` | Submit a bug |
+[CLAUDE] | POST | `/api/extension/bugs/[bugId]/evidence` | Upload evidence for a bug |
+[CLAUDE] | GET | `/api/extension/version` | Extension version check |
+[CLAUDE] 
+[CLAUDE] ## Evidence Upload
+[CLAUDE] 
+[CLAUDE] `POST /api/extension/bugs/[bugId]/evidence` requires an active testing session (`requireActiveBugTestingSession`). Evidence is stored via `attachmentStorage` and linked to the bug as an attachment.
+[CLAUDE] 
+[CLAUDE] ## Testing Sessions
+[CLAUDE] 
+[CLAUDE] `src/lib/bugs/testing-session-service.ts` manages active testing sessions. A session must be active for evidence to be uploaded — this ties extension bug submissions to a structured QA session.
+[CLAUDE] 
+[CLAUDE] === END FILE ===
+[CLAUDE] 
+[CLAUDE] === FILE: wiki/systems/bug_tracker/admin.md ===
+[CLAUDE] ---
+[CLAUDE] type: system
+[CLAUDE] owner: engineering
+[CLAUDE] last_updated: 2026-04-20
+[CLAUDE] source_count: 8
+[CLAUDE] tags: [admin, users, projects, monitoring, notifications, bug-data]
+[CLAUDE] status: active
+[CLAUDE] ---
+[CLAUDE] 
+[CLAUDE] # Admin Panel
+[CLAUDE] 
+[CLAUDE] ## Access Control
+[CLAUDE] 
+[CLAUDE] All admin API routes call `requireAdminUser` from `auth-service.ts`. Non-admin requests receive 401/403.
+[CLAUDE] 
+[CLAUDE] The admin nav is rendered by `src/app/(authenticated)/admin/admin-nav.tsx`.
+[CLAUDE] 
+[CLAUDE] ## Admin Surfaces
+[CLAUDE] 
+[CLAUDE] ### User Management
+[CLAUDE] - `GET /api/admin/users` — list QA users
+[CLAUDE] - `POST /api/admin/users` — create QA user (name, email, temporaryPassword)
+[CLAUDE] - `POST /api/admin/users/[id]/deactivate` — deactivate a user
+[CLAUDE] 
+[CLAUDE] Implemented via `user-service.ts` (`listQaUsers`, `createQaUser`, `deactivateQaUser`).
+[CLAUDE] 
+[CLAUDE] ### Project Management
+[CLAUDE] - `GET|POST /api/admin/projects` — list / create projects
+[CLAUDE] - `PATCH /api/admin/projects/[id]` — update project (name, key, description, isArchived)
+[CLAUDE] - `GET|POST /api/admin/projects/[id]/sections` — list / create sections
+[CLAUDE] - `PATCH /api/admin/projects/[id]/sections/[sid]` — update section
+[CLAUDE] 
+[CLAUDE] ### Organizations View
+[CLAUDE] - `GET /api/admin/organizations-with-projects` — flat join of all orgs and their projects (for admin overview)
+[CLAUDE] 
+[CLAUDE] ### Monitoring
+[CLAUDE] See [Monitoring](./monitoring.md) for full details. Admin dashboard summary at `GET /api/admin/dashboard/summary`.
+[CLAUDE] 
+[CLAUDE] ### Notifications Admin
+[CLAUDE] See [Notifications](./notifications.md) for full details.
+[CLAUDE] 
+[CLAUDE] ### Bug Data Management
+[CLAUDE] Admins can import and export bug data as batch jobs. See [Bugs — Import/Export](./bugs.md#data-import--export).
+[CLAUDE] 
+[CLAUDE] Admin UI in `src/app/(authenticated)/admin/bug-data/`.
+[CLAUDE] 
+[CLAUDE] ## Filter Components
+[CLAUDE] 
+[CLAUDE] Admin sections with filterable lists use local filter state objects:
+[CLAUDE] - `MonitoringAlertFilterState` — `alert-list-filters.ts`
+[CLAUDE] - `NotificationDeliveryFilterState` — `notification-center-filters.ts`
+[CLAUDE] 
+[CLAUDE] Both build `URLSearchParams` and validate before making API calls.
+[CLAUDE] 
+[CLAUDE] === END FILE ===
+[CLAUDE] 
+[CLAUDE] === FILE: wiki/systems/bug_tracker/database.md ===
+[CLAUDE] ---
+[CLAUDE] type: system
+[CLAUDE] owner: engineering
+[CLAUDE] last_updated: 2026-04-20
+[CLAUDE] source_count: 6
+[CLAUDE] tags: [database, postgresql, schema, migrations, testing]
+[CLAUDE] status: active
+[CLAUDE] ---
+[CLAUDE] 
+[CLAUDE] # Database Layer
+[CLAUDE] 
+[CLAUDE] ## Adapters
+[CLAUDE] 
+[CLAUDE] The app uses a **dual-database strategy**:
+[CLAUDE] 
+[CLAUDE] | Backend | When used | Config |
+[CLAUDE] |---|---|---|
+[CLAUDE] | PostgreSQL | Production, postgres unit tests | `BUG_TRACKER_TEST_DB_BACKEND=postgres` |
+[CLAUDE] | In-memory | Default unit tests | `BUG_TRACKER_TEST_DB_BACKEND=memory` |
+[CLAUDE] 
+[CLAUDE] `src/lib/db/database-client.ts` provides `getDatabase()` which returns the appropriate adapter. `src/lib/db/index.ts` re-exports it for use across the app.
+[CLAUDE] 
+[CLAUDE] ## PostgreSQL
+[CLAUDE] 
+[CLAUDE] - Client: `pg` library (`postgres-client.ts`)
+[CLAUDE] - Config: `postgres-config.ts` — reads `POSTGRES_*` env vars, defaults to `127.0.0.1:5432`
+[CLAUDE] - Schema: `postgres-schema.ts` — DDL definitions
+[CLAUDE] - Migrations: `scripts/migrate-postgres.ts` (run via `npm run db:migrate:postgres`)
+[CLAUDE] - Worker: `postgres-worker.ts` (compiled to `.next/db/postgres-worker.mjs`) — runs DB operations off the main thread
+[CLAUDE] - Bootstrap: `postgres-bootstrap.ts` — seed initial admin user
+[CLAUDE] 
+[CLAUDE] ## Schema
+[CLAUDE] 
+[CLAUDE] Defined in `src/lib/db/schema.ts` (shared types) and `src/lib/db/postgres-schema.ts` (PostgreSQL DDL).
+[CLAUDE] 
+[CLAUDE] Key tables inferred from service/store files:
+[CLAUDE] 
+[CLAUDE] | Table | Purpose |
+[CLAUDE] |---|---|
+[CLAUDE] | `users` | User accounts |
+[CLAUDE] | `sessions` | Auth sessions |
+[CLAUDE] | `auth_action_tokens` | Email verification / password reset tokens |
+[CLAUDE] | `organizations` | Tenant organizations |
+[CLAUDE] | `organization_memberships` | User ↔ org membership + role |
+[CLAUDE] | `organization_invitations` | Pending invitations |
+[CLAUDE] | `projects` | Bug projects |
+[CLAUDE] | `project_sections` | Sections within projects |
+[CLAUDE] | `project_memberships` | User ↔ project access |
+[CLAUDE] | `bugs` | Bug records |
+[CLAUDE] | `bug_comments` | Bug comments |
+[CLAUDE] | `bug_attachments` | Attachment metadata |
+[CLAUDE] | `bug_history` | Audit trail of bug changes |
+[CLAUDE] | `bug_data_jobs` | Import/export async jobs |
+[CLAUDE] | `testing_sessions` | QA testing sessions |
+[CLAUDE] | `testing_session_logs` | Log entries for testing sessions |
+[CLAUDE] | `notifications` | Notification event records |
+[CLAUDE] | `notification_deliveries` | Per-recipient delivery records |
+[CLAUDE] | `notification_settings` | Event/recipient-group enable flags |
+[CLAUDE] | `operational_logs` | App observability log entries |
+[CLAUDE] | `operational_alerts` | Raised operational alerts |
+[CLAUDE] | `api_keys` | API key credentials |
+[CLAUDE] 
+[CLAUDE] ## Testing
+[CLAUDE] 
+[CLAUDE] - **In-memory**: `local-test-database.ts` + `local-test-database-runtime.ts`
+[CLAUDE] - **PostgreSQL tests**: `postgres-test-setup.test.ts`, `postgres-test-reset.ts`
+[CLAUDE] - Test isolation: `postgres-test-reset.ts` truncates tables between runs
+[CLAUDE] - `wait-for-promise.ts` — retry helper for async DB readiness checks
+[CLAUDE] 
+[CLAUDE] === END FILE ===
+[CLAUDE] 
+[CLAUDE] === FILE: wiki/systems/bug_tracker/settings.md ===
+[CLAUDE] ---
+[CLAUDE] type: system
+[CLAUDE] owner: engineering
+[CLAUDE] last_updated: 2026-04-20
+[CLAUDE] source_count: 4
+[CLAUDE] tags: [settings, api-keys, jwt, integrations, openapi]
+[CLAUDE] status: active
+[CLAUDE] ---
+[CLAUDE] 
+[CLAUDE] # Settings
+[CLAUDE] 
+[CLAUDE] ## API Access
+[CLAUDE] 
+[CLAUDE] Users can generate API keys for programmatic access. Managed by:
+[CLAUDE] - `api-key-service.ts` — create, list, revoke keys
+[CLAUDE] - `api-access-config-service.ts` — org-level API access configuration
+[CLAUDE] - `GET|POST|DELETE /api/settings/api-access`
+[CLAUDE] 
+[CLAUDE] UI: `src/components/settings/api-key-settings-panel.tsx`
+[CLAUDE] 
+[CLAUDE] ## JWT Settings
+[CLAUDE] 
+[CLAUDE] `auth-jwt-service.ts` manages JWT signing configuration. UI: `src/components/settings/auth-jwt-settings-panel.tsx`.
+[CLAUDE] 
+[CLAUDE] ## API Documentation
+[CLAUDE] 
+[CLAUDE] The app ships an OpenAPI spec at `public/openapi.json`. A Swagger UI viewer is available at `/settings/api-docs` and `/api-docs` (using `swagger-ui-react`).
+[CLAUDE] 
+[CLAUDE] UI: `src/components/settings/api-docs-viewer.tsx`
+[CLAUDE] 
+[CLAUDE] ## Integrations
+[CLAUDE] 
+[CLAUDE] Settings page at `/settings/integrations` — integration configuration panel (source not shown in detail).
+[CLAUDE] 
+[CLAUDE] ## Password Management
+[CLAUDE] 
+[CLAUDE] `src/components/settings/password-management-panel.tsx` — UI for the change-password flow (calls `POST /api/auth/change-password`).
+[CLAUDE] 
+[CLAUDE] === END FILE ===
+[CLAUDE] 
+[CLAUDE] === FILE: wiki/decisions/bug_tracker-tech-stack.md ===
+[CLAUDE] ---
+[CLAUDE] type: decision
+[CLAUDE] owner: engineering
+[CLAUDE] last_updated: 2026-04-20
+[CLAUDE] source_count: 3
+[CLAUDE] tags: [nextjs, typescript, postgresql, react]
+[CLAUDE] status: active
+[CLAUDE] ---
+[CLAUDE] 
+[CLAUDE] # ADR: Technology Stack
+[CLAUDE] 
+[CLAUDE] ## Decision
+[CLAUDE] 
+[CLAUDE] Build the bug tracker as a **Next.js 16 full-stack application** using the App Router, TypeScript, React 19, PostgreSQL, and Tailwind CSS.
+[CLAUDE] 
+[CLAUDE] ## Why
+[CLAUDE] 
+[CLAUDE] - Next.js App Router colocates API routes and UI in one repo, reducing operational complexity for a team-sized product.
+[CLAUDE] - TypeScript throughout enables shared types between API route handlers and client components without a separate schema layer.
+[CLAUDE] - PostgreSQL provides relational integrity needed for multi-tenant data (orgs → projects → bugs → history).
+[CLAUDE] - Tailwind CSS + shadcn/ui (Radix primitives) gives a component library without a large design-system dependency.
+[CLAUDE] 
+[CLAUDE] ## Consequences
+[CLAUDE] 
+[CLAUDE] - **Webpack mode** is explicitly forced (`--webpack` in dev and build scripts), suggesting Turbopack was evaluated and had issues.
+[CLAUDE] - The MCP SDK dependency (`@modelcontextprotocol/sdk`) ties the project to LLM tooling from the start.
+[CLAUDE] - No ORM is used — all DB access is raw SQL via `pg`, keeping query control but requiring manual schema management.
+[CLAUDE] - Dual-database testing (in-memory vs PostgreSQL) adds complexity but enables fast unit test feedback loops.
+[CLAUDE] 
+[CLAUDE] === END FILE ===
+[CLAUDE] 
+[CLAUDE] === FILE: wiki/decisions/bug_tracker-dual-database-testing.md ===
+[CLAUDE] ---
+[CLAUDE] type: decision
+[CLAUDE] owner: engineering
+[CLAUDE] last_updated: 2026-04-20
+[CLAUDE] source_count: 3
+[CLAUDE] tags: [testing, database, in-memory, postgresql]
+[CLAUDE] status: active
+[CLAUDE] ---
+[CLAUDE] 
+[CLAUDE] # ADR: Dual Database Testing Strategy
+[CLAUDE] 
+[CLAUDE] ## Decision
+[CLAUDE] 
+[CLAUDE] Maintain **two database backends**: an in-memory adapter (default for unit tests) and PostgreSQL (for integration/postgres-specific tests).
+[CLAUDE] 
+[CLAUDE] Controlled by environment variable: `BUG_TRACKER_TEST_DB_BACKEND=memory|postgres`
+[CLAUDE] 
+[CLAUDE] ## Why
+[CLAUDE] 
+[CLAUDE] Fast unit test feedback: the in-memory backend runs tests without requiring Docker or a live PostgreSQL instance. Developers can run `npm run test` immediately after checkout.
+[CLAUDE] 
+[CLAUDE] PostgreSQL-specific behavior (constraints, transactions, advanced queries) is tested separately with `npm run test:unit:postgres`, which requires the Docker service to be running.
+[CLAUDE] 
+[CLAUDE] ## How to Apply
+[CLAUDE] 
+[CLAUDE] - Default `npm run test` → in-memory, fast, no Docker needed
+[CLAUDE] - `npm run test:unit:postgres` → real PostgreSQL, use when changing DB schema, queries, or migration scripts
+[CLAUDE] - E2E tests (`npm run test:e2e`) always use PostgreSQL via Docker
+[CLAUDE] 
+[CLAUDE] ## Consequences
+[CLAUDE] 
+[CLAUDE] - Risk of in-memory/PostgreSQL behavioral divergence — mitigated by running postgres tests in CI.
+[CLAUDE] - `database-client.ts` must maintain compatible interfaces across both adapters.
+[CLAUDE] - Test isolation: `postgres-test-reset.ts` truncates tables; in-memory resets on process.
+[CLAUDE] 
+[CLAUDE] === END FILE ===
+[CLAUDE] 
+[CLAUDE] === FILE: wiki/decisions/bug_tracker-agent-api-design.md ===
+[CLAUDE] ---
+[CLAUDE] type: decision
+[CLAUDE] owner: engineering
+[CLAUDE] last_updated: 2026-04-20
+[CLAUDE] source_count: 2
+[CLAUDE] tags: [agent, api, mcp, cli]
+[CLAUDE] status: active
+[CLAUDE] ---
+[CLAUDE] 
+[CLAUDE] # ADR: Agent API Design (Three-Interface Approach)
+[CLAUDE] 
+[CLAUDE] ## Decision
+[CLAUDE] 
+[CLAUDE] Expose agent functionality through **three parallel interfaces**: a REST API (`/api/agent/`), a CLI (`npm run bugs:cli`), and an MCP server (`npm run mcp:server`).
+[CLAUDE] 
+[CLAUDE] ## Why
+[CLAUDE] 
+[CLAUDE] - **REST API** allows any HTTP client (including LLM-based agents) to interact without a local binary.
+[CLAUDE] - **CLI** enables scripted local workflows and testing agent logic without an HTTP server.
+[CLAUDE] - **MCP Server** integrates with LLM tooling that speaks the Model Context Protocol natively, enabling tool-use by Claude and other models.
+[CLAUDE] 
+[CLAUDE] The claim-before-work pattern (`POST /api/agent/bugs/[bugId]/claim`) prevents multiple agents from picking up the same bug without a distributed lock.
+[CLAUDE] 
+[CLAUDE] ## Consequences
+[CLAUDE] 
+[CLAUDE] - Three entry points to keep in sync when bug operations change.
+[CLAUDE] - The `agent-api.ts` helper module centralizes auth, error mapping, and response shaping so the three interfaces share common behavior.
+[CLAUDE] - Multi-agent coordination remains partially unresolved — see [open question](../open-questions/bug_tracker-agent-coordination.md).
+[CLAUDE] 
+[CLAUDE] === END FILE ===
+[CLAUDE] 
+[CLAUDE] === FILE: wiki/concepts/bug_tracker-domain-model.md ===
+[CLAUDE] ---
+[CLAUDE] type: concept
+[CLAUDE] owner: engineering
+[CLAUDE] last_updated: 2026-04-20
+[CLAUDE] source_count: 5
+[CLAUDE] tags: [domain, data-model, bugs, organizations, projects]
+[CLAUDE] status: active
+[CLAUDE] ---
+[CLAUDE] 
+[CLAUDE] # Domain Model
+[CLAUDE] 
+[CLAUDE] ## Core Entities
+[CLAUDE] 
+[CLAUDE] ```
+[CLAUDE] Organization
+[CLAUDE]     │
+[CLAUDE]     ├── Members (Users with roles)
+[CLAUDE]     ├── Projects
+[CLAUDE]     │       └── Sections
+[CLAUDE]     │               └── Bugs
+[CLAUDE]     │                     ├── Comments
+[CLAUDE]     │                     ├── Attachments
+[CLAUDE]     │                     └── History entries
+[CLAUDE]     │
+[CLAUDE]     ├── Invitations
+[CLAUDE]     └── Notification Settings
+[CLAUDE] ```
+[CLAUDE] 
+[CLAUDE] ## Bug
+[CLAUDE] 
+[CLAUDE] Central entity. Key fields:
+[CLAUDE] 
+[CLAUDE] | Field | Type | Notes |
+[CLAUDE] |---|---|---|
+[CLAUDE] | `title` | string | Required |
+[CLAUDE] | `description` | string | Required |
+[CLAUDE] | `severity` | enum | e.g. `low`, `medium`, `high`, `critical` |
+[CLAUDE] | `status` | enum | `New`, `Triaged`, `In Progress`, `Ready for QA`, `Closed` |
+[CLAUDE] | `projectId` | FK | Required |
+[CLAUDE] | `sectionId` | FK | Required |
+[CLAUDE] | `reporterUserId` | FK | Optional |
+[CLAUDE] | `assigneeUserId` | FK | Optional |
+[CLAUDE] | `is_archived` | boolean | Soft archive |
+[CLAUDE] 
+[CLAUDE] Agent-specific fields: `claimedBy` (string agent name), agent `state`, `statusNote`.
+[CLAUDE] 
+[CLAUDE] ## Organization
+[CLAUDE] 
+[CLAUDE] Top-level tenant. Has a `slug` (URL-friendly identifier), `name`, billing state, and seat count.
+[CLAUDE] 
+[CLAUDE] ## Project
+[CLAUDE] 
+[CLAUDE] Belongs to an organization. Has a `key` (short code), `name`, `description`, and `isArchived` flag. Contains ordered **sections**.
+[CLAUDE] 
+[CLAUDE] ## User
+[CLAUDE] 
+[CLAUDE] Global (not org-scoped). Users join organizations via membership records. Roles are per-membership. QA users are a distinct user type managed by admins.
+[CLAUDE] 
+[CLAUDE] ## Testing Session
+[CLAUDE] 
+[CLAUDE] A structured QA session tied to a user. Evidence uploads via the Chrome extension require an active testing session. Logs are recorded per session in `testing_session_logs`.
+[CLAUDE] 
+[CLAUDE] ## Operational Alert
+[CLAUDE] 
+[CLAUDE] A system-generated alert (not a user-filed bug). Admins can acknowledge/resolve alerts or promote them to bugs via `POST /api/admin/alerts/[id]/bugs`.
+[CLAUDE] 
+[CLAUDE] === END FILE ===
+[CLAUDE] 
+[CLAUDE] === FILE: wiki/concepts/bug_tracker-request-lifecycle.md ===
+[CLAUDE] ---
+[CLAUDE] type: concept
+[CLAUDE] owner: engineering
+[CLAUDE] last_updated: 2026-04-20
+[CLAUDE] source_count: 4
+[CLAUDE] tags: [api, observability, auth, request-lifecycle]
+[CLAUDE] status: active
+[CLAUDE] ---
+[CLAUDE] 
+[CLAUDE] # Request Lifecycle
+[CLAUDE] 
+[CLAUDE] Every API request flows through the same chain:
+[CLAUDE] 
+[CLAUDE] ```
+[CLAUDE] 1. Next.js routes request to handler
+[CLAUDE] 2. withRequestObservability wraps handler
+[CLAUDE] 3. Handler validates request body / params
+[CLAUDE] 4. Auth guard called (requireAuthenticatedUser / requireAdminUser / requireAgentApiUser)
+[CLAUDE] 5. Active organization resolved (requireActiveOrganizationSession) if needed
+[CLAUDE] 6. Service function called
+[CLAUDE] 7. Response returned
+[CLAUDE] 8. withRequestObservability records method, path, status, duration to operational_logs
+[CLAUDE] ```
+[CLAUDE] 
+[CLAUDE] ## Observability Wrapper
+[CLAUDE] 
+[CLAUDE] `withRequestObservability(method, handler)` in `src/lib/monitoring/request-observability.ts`:
+[CLAUDE] - Wraps every exported handler
+[CLAUDE] - Catches unhandled errors and records them with fingerprints
+[CLAUDE] - Does not suppress errors — re-throws after logging
+[CLAUDE] 
+[CLAUDE] ## Error Handling Pattern
+[CLAUDE] 
+[CLAUDE] API routes follow a consistent try/catch pattern:
+[CLAUDE] 
+[CLAUDE] ```typescript
+[CLAUDE] try {
+[CLAUDE]   // business logic
+[CLAUDE] } catch (error) {
+[CLAUDE]   if (error instanceof AuthenticationError) return 401
+[CLAUDE]   if (error instanceof SomeServiceError) return 400 / 404 / 409
+[CLAUDE]   throw error  // unexpected — let observability catch it
+[CLAUDE] }
+[CLAUDE] ```
+[CLAUDE] 
+[CLAUDE] Service-specific error classes (`BugServiceError`, `ProjectServiceError`, etc.) carry typed codes that handlers map to HTTP status codes.
+[CLAUDE] 
+[CLAUDE] ## Request Validation
+[CLAUDE] 
+[CLAUDE] No schema library (e.g. Zod) is used in API routes. Validation is done via explicit type guard conditions on the parsed JSON body:
+[CLAUDE] 
+[CLAUDE] ```typescript
+[CLAUDE] if (!body || typeof body.name !== "string") {
+[CLAUDE]   return NextResponse.json({ error: "..." }, { status: 400 })
+[CLAUDE] }
+[CLAUDE] ```
+[CLAUDE] 
+[CLAUDE] This pattern is consistent across all routes.
+[CLAUDE] 
+[CLAUDE] === END FILE ===
+[CLAUDE] 
+[CLAUDE] === FILE: wiki/runbooks/bug_tracker-local-setup.md ===
+[CLAUDE] ---
+[CLAUDE] type: runbook
+[CLAUDE] owner: engineering
+[CLAUDE] last_updated: 2026-04-20
+[CLAUDE] source_count: 1
+[CLAUDE] tags: [setup, local, docker, postgresql, onboarding]
+[CLAUDE] status: active
+[CLAUDE] ---
+[CLAUDE] 
+[CLAUDE] # Local Development Setup
+[CLAUDE] 
+[CLAUDE] ## Prerequisites
+[CLAUDE] 
+[CLAUDE] - Node.js
+[CLAUDE] - npm
+[CLAUDE] - Docker + Docker Compose
+[CLAUDE] 
+[CLAUDE] ## First-Time Setup
+[CLAUDE] 
+[CLAUDE] ```bash
+[CLAUDE] # 1. Clone and enter repo
+[CLAUDE] cd bug_tracker
+[CLAUDE] 
+[CLAUDE] # 2. Copy environment file
+[CLAUDE] cp .env.example .env
+[CLAUDE] 
+[CLAUDE] # 3. Install dependencies
+[CLAUDE] npm install
+[CLAUDE] 
+[CLAUDE] # 4. Start PostgreSQL via Docker
+[CLAUDE] docker compose up -d postgres
+[CLAUDE] 
+[CLAUDE] # 5. Apply database migrations
+[CLAUDE] npm run db:migrate:postgres
+[CLAUDE] 
+[CLAUDE] # 6. Start dev server
+[CLAUDE] npm run dev
+[CLAUDE] ```
+[CLAUDE] 
+[CLAUDE] Open http://localhost:3000.
+[CLAUDE] 
+[CLAUDE] ## Environment Variables
+[CLAUDE] 
+[CLAUDE] `.env.example` contains defaults for local PostgreSQL (`127.0.0.1:5432`). Do not change unless you have a reason.
+[CLAUDE] 
+[CLAUDE] SendGrid variables can be left empty unless testing email delivery.
+[CLAUDE] 
+[CLAUDE] ## Running Tests
+[CLAUDE] 
+[CLAUDE] ```bash
+[CLAUDE] # Fast unit tests (in-memory DB, no Docker needed)
+[CLAUDE] npm run test
+[CLAUDE] 
+[CLAUDE] # PostgreSQL-backed unit tests (requires Docker postgres running)
+[CLAUDE] npm run test:unit:postgres
+[CLAUDE] 
+[CLAUDE] # E2E tests (requires seeded test DB)
+[CLAUDE] npm run test:e2e:seed
+[CLAUDE] npm run test:e2e
+[CLAUDE] ```
+[CLAUDE] 
+[CLAUDE] ## Other Useful Commands
+[CLAUDE] 
+[CLAUDE] ```bash
+[CLAUDE] npm run lint          # ESLint
+[CLAUDE] npm run typecheck     # TypeScript check
+[CLAUDE] npm run build         # Production build
+[CLAUDE] npm run start         # Run production server locally
+[CLAUDE] 
+[CLAUDE] # Tooling
+[CLAUDE] npm run bugs:cli      # Agent CLI
+[CLAUDE] npm run alerts:cli    # Alerts CLI
+[CLAUDE] npm run mcp:server    # MCP server
+[CLAUDE] ```
+[CLAUDE] 
+[CLAUDE] ## Nginx / Domain Setup
+[CLAUDE] 
+[CLAUDE] See `docs/deployment-nginx.md` for reverse-proxy and domain-based access.
+[CLAUDE] 
+[CLAUDE] ## Observability
+[CLAUDE] 
+[CLAUDE] See `docs/observability.md` for structured logging and file output configuration.
+[CLAUDE] 
+[CLAUDE] === END FILE ===
+[CLAUDE] 
+[CLAUDE] === FILE: wiki/runbooks/bug_tracker-deploy.md ===
+[CLAUDE] ---
+[CLAUDE] type: runbook
+[CLAUDE] owner: engineering
+[CLAUDE] last_updated: 2026-04-20
+[CLAUDE] source_count: 2
+[CLAUDE] tags: [deployment, nginx, production, aws, ec2]
+[CLAUDE] status: active
+[CLAUDE] ---
+[CLAUDE] 
+[CLAUDE] # Deployment
+[CLAUDE] 
+[CLAUDE] ## Production Build
+[CLAUDE] 
+[CLAUDE] ```bash
+[CLAUDE] npm run build
+[CLAUDE] npm run start
+[CLAUDE] ```
+[CLAUDE] 
+[CLAUDE] `npm run build` compiles Next.js and also builds the PostgreSQL worker bundle:
+[CLAUDE] ```
+[CLAUDE] .next/db/postgres-worker.mjs
+[CLAUDE] ```
+[CLAUDE] 
+[CLAUDE] This worker must be present at runtime; the `predev` script also builds it before `npm run dev`.
+[CLAUDE] 
+[CLAUDE] ## Nginx / Reverse Proxy
+[CLAUDE] 
+[CLAUDE] See `docs/deployment-nginx.md` for full nginx configuration, including:
+[CLAUDE] - Domain-based access
+[CLAUDE] - SSL termination
+[CLAUDE] - Proxy pass to Next.js
+[CLAUDE] 
+[CLAUDE] ## AWS EC2 Deployment
+[CLAUDE] 
+[CLAUDE] A PRD for AWS EC2 deployment exists at `tasks/prd-aws-ec2-deployment.md`. Refer to it for planned infrastructure setup.
+[CLAUDE] 
+[CLAUDE] ## Database
+[CLAUDE] 
+[CLAUDE] Before first run against a new PostgreSQL instance:
+[CLAUDE] 
+[CLAUDE] ```bash
+[CLAUDE] npm run db:migrate:postgres
+[CLAUDE] ```
+[CLAUDE] 
+[CLAUDE] Bootstrap admin user via `src/lib/db/bootstrap-admin.ts` (run once after migrations).
+[CLAUDE] 
+[CLAUDE] ## Environment Variables Required for Production
+[CLAUDE] 
+[CLAUDE] | Variable | Purpose |
+[CLAUDE] |---|---|
+[CLAUDE] | `POSTGRES_*` | PostgreSQL connection |
+[CLAUDE] | `SENDGRID_API_KEY` | Email delivery |
+[CLAUDE] | Session secret | Cookie signing (see `session.ts`) |
+[CLAUDE] 
+[CLAUDE] === END FILE ===
+[CLAUDE] 
+[CLAUDE] === FILE: wiki/runbooks/bug_tracker-bug-data-import.md ===
+[CLAUDE] ---
+[CLAUDE] type: runbook
+[CLAUDE] owner: engineering
+[CLAUDE] last_updated: 2026-04-20
+[CLAUDE] source_count: 2
+[CLAUDE] tags: [import, export, csv, bulk, admin]
+[CLAUDE] status: active
+[CLAUDE] ---
+[CLAUDE] 
+[CLAUDE] # Bug Data Import & Export
+[CLAUDE] 
+[CLAUDE] ## Import
+[CLAUDE] 
+[CLAUDE] Admin workflow:
+[CLAUDE] 
+[CLAUDE] 1. Prepare a CSV file with bug data
+[CLAUDE] 2. Upload via Admin → Bug Data → Import
+[CLAUDE] 3. System validates the CSV (row by row)
+[CLAUDE] 4. Review validation result:
+[CLAUDE]    - Total / valid / invalid row counts
+[CLAUDE]    - Per-row issues with field + message
+[CLAUDE] 5. Choose duplicate strategy: `skip_existing` or `update_existing`
+[CLAUDE] 6. Execute import
+[CLAUDE] 7. Monitor job status: `queued → running → completed | completed_with_warnings | failed`
+[CLAUDE] 8. Review execution summary: created / updated / skipped / failed counts
+[CLAUDE] 
+[CLAUDE] ## Export
+[CLAUDE] 
+[CLAUDE] 1. Admin → Bug Data → Export
+[CLAUDE] 2. System creates an async export job
+[CLAUDE] 3. Job serializes bugs + history entries + attachments into a zip
+[CLAUDE] 4. Manifest records: bugCount, historyEntryCount, attachmentCount, missingFileCount
+[CLAUDE] 5. Download link available once job status is `completed`
+[CLAUDE] 
+[CLAUDE] ## Job Statuses
+[CLAUDE] 
+[CLAUDE] | Status | Meaning |
+[CLAUDE] |---|---|
+[CLAUDE] | `queued` | Waiting to start |
+[CLAUDE] | `running` | In progress |
+[CLAUDE] | `completed` | Success |
+[CLAUDE] | `completed_with_warnings` | Success with non-fatal issues |
+[CLAUDE] | `failed` | Fatal error — check job errors array |
+[CLAUDE] 
+[CLAUDE] ## Troubleshooting
+[CLAUDE] 
+[CLAUDE] - Check `job.errors` and `job.warnings` arrays on a failed job
+[CLAUDE] - `missingFileCount > 0` in export manifest means some attachment files were not found on disk
+[CLAUDE] - Invalid rows in import are skipped; details in `validation.rows` filtered by `issues.length > 0`
+[CLAUDE] 
+[CLAUDE] === END FILE ===
+[CLAUDE] 
+[CLAUDE] === FILE: wiki/tech-debt/bug_tracker-incomplete-implementations.md ===
+[CLAUDE] ---
+[CLAUDE] type: tech-debt
+[CLAUDE] owner: engineering
+[CLAUDE] last_updated: 2026-04-20
+[CLAUDE] source_count: 3
+[CLAUDE] tags: [tech-debt, incomplete, stubs]
+[CLAUDE] status: active
+[CLAUDE] ---
+[CLAUDE] 
+[CLAUDE] # Incomplete Implementations
+[CLAUDE] 
+[CLAUDE] Several functions in the codebase have skeleton bodies with early returns or empty blocks. These were truncated in source extraction but indicate areas with partial logic.
+[CLAUDE] 
+[CLAUDE] ## Known Gaps
+[CLAUDE] 
+[CLAUDE] ### `summarizeBugDataJobs` (`bug-data-management-panel.helpers.ts`)
+[CLAUDE] 
+[CLAUDE] The `reduce` accumulator callback body is empty. The function returns an empty object. Counts by status and latest job references are not computed.
+[CLAUDE] 
+[CLAUDE] ```ts
+[CLAUDE] const countsByStatus = BUG_DATA_JOB_STATUSES.reduce(
+[CLAUDE]   (accumulator, status) => {
+[CLAUDE]     // empty
+[CLAUDE]   },
+[CLAUDE]   {} as Record<BugDataJobStatus, number>,
+[CLAUDE] );
+[CLAUDE] return {}; // no fields returned
+[CLAUDE] ```
+[CLAUDE] 
+[CLAUDE] ### `formatBugDataJobProgress` / `formatBugDataJobSummary` (import branch)
+[CLAUDE] 
+[CLAUDE] The `if (job.jobType === "import")` branches in both functions return nothing — import-specific formatting is not yet implemented. Only export formatting is present.
+[CLAUDE] 
+[CLAUDE] ### `formatBugHistoryEventLabel` (`bug-history.helpers.ts`)
+[CLAUDE] 
+[CLAUDE] The `switch` statement body is empty — no event type labels are mapped yet.
+[CLAUDE] 
+[CLAUDE] ### `getBugHistoryEntrySource` (import branch)
+[CLAUDE] 
+[CLAUDE] The `bug_import_*` event type handler returns nothing.
+[CLAUDE] 
+[CLAUDE] ### Filter `buildMonitoringAlertSearchParams` / `buildAllBugSearchParams`
+[CLAUDE] 
+[CLAUDE] Individual `if (severity)`, `if (status)` etc. blocks that append to `URLSearchParams` are empty — params are never actually appended.
+[CLAUDE] 
+[CLAUDE] ### `validateMonitoringAlertFilters` date range validation
+[CLAUDE] 
+[CLAUDE] The `if (latestSeenFrom && latestSeenTo)` comparison check body is empty — no validation error is thrown for invalid date ranges.
+[CLAUDE] 
+[CLAUDE] ## Impact
+[CLAUDE] 
+[CLAUDE] - Bug data job summary panel shows no counts or job details
+[CLAUDE] - Bug history event type labels show raw event type strings
+[CLAUDE] - Filter URL params may not serialize correctly for monitoring alerts
+[CLAUDE] - Date range validation for alert filters does not enforce ordering
+[CLAUDE] 
+[CLAUDE] ## Recommendation
+[CLAUDE] 
+[CLAUDE] Audit each function body against its test file (where present) to restore intended behavior. The type signatures and surrounding logic are sound — only the implementation bodies need filling in.
+[CLAUDE] 
+[CLAUDE] === END FILE ===
+[CLAUDE] 
+[CLAUDE] === FILE: wiki/open-questions/bug_tracker-agent-coordination.md ===
+[CLAUDE] ---
+[CLAUDE] type: open-question
+[CLAUDE] owner: engineering
+[CLAUDE] last_updated: 2026-04-20
+[CLAUDE] source_count: 1
+[CLAUDE] tags: [agent, coordination, multi-agent, concurrency]
+[CLAUDE] status: active
+[CLAUDE] ---
+[CLAUDE] 
+[CLAUDE] # Open Question: Multi-Agent Coordination
+[CLAUDE] 
+[CLAUDE] ## Question
+[CLAUDE] 
+[CLAUDE] How should multiple agents coordinate to avoid duplicate work, handle failures mid-claim, and signal progress to each other?
+[CLAUDE] 
+[CLAUDE] ## Current State
+[CLAUDE] 
+[CLAUDE] The claim mechanism (`POST /api/agent/bugs/[bugId]/claim` with `claimedBy`) provides basic mutual exclusion — an agent names itself as the claimer before working on a bug.
+[CLAUDE] 
+[CLAUDE] However:
+[CLAUDE] - There is no timeout/lease on claims — a crashed agent keeps a bug claimed indefinitely
+[CLAUDE] - There is no heartbeat mechanism to signal liveness
+[CLAUDE] - There is no queue abstraction — agents poll `GET /api/agent/bugs` and race to claim
+[CLAUDE] - No coordination protocol is documented
+[CLAUDE] 
+[CLAUDE] ## From Source Notes
+[CLAUDE] 
+[CLAUDE] > "Agent should be automated and if multiple agents working on this it should coordinate with others how to perform its task."
+[CLAUDE] 
+[CLAUDE] This indicates multi-agent operation is intended but the coordination design is unresolved.
+[CLAUDE] 
+[CLAUDE] ## Options to Consider
+[CLAUDE] 
+[CLAUDE] 1. **Lease-based claims**: add `claimedUntil` timestamp; expired claims become available again
+[CLAUDE] 2. **Agent heartbeat**: agents ping a keepalive endpoint; stale agents are evicted
+[CLAUDE] 3. **Distributed queue**: move claimable bugs into a proper work queue (e.g. Redis, DB queue table)
+[CLAUDE] 4. **Coordinator agent**: one agent acts as dispatcher, others are workers
+[CLAUDE] 
+[CLAUDE] ## Priority
+[CLAUDE] 
+[CLAUDE] Medium — single-agent operation works today. Multi-agent concurrency becomes a problem only when multiple agents run simultaneously against the same bug pool.
+[CLAUDE] 
+[CLAUDE] === END FILE ===
+[SWIKI:CLAUDE_DONE] Claude responded (43473 chars)
+  ✓ bug_tracker re-ingested successfully
+[SWIKI:PROGRESS] {"index":0,"name":"bug_tracker","phase":"repo","status":"done","total":1}
+
+Committed: swiki repo sync: 1 repo(s) updated 2026-04-20
+[SWIKI:PROGRESS] {"phase":"done","synced":1,"total":1}
+[2026-04-20 08:12:28] exit 0 (success)
+

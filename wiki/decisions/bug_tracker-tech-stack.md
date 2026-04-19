@@ -3,26 +3,32 @@ type: decision
 owner: engineering
 last_updated: 2026-04-20
 source_count: 3
-tags: [nextjs, typescript, postgresql, react]
+tags: [tech-stack, nextjs, typescript, postgresql, react]
 status: active
 ---
 
-# ADR: Technology Stack
+# ADR-001: Technology Stack
 
 ## Decision
 
-Build the bug tracker as a **Next.js 16 full-stack application** using the App Router, TypeScript, React 19, PostgreSQL, and Tailwind CSS.
+Build Bug Tracker as a Next.js 16 (App Router) TypeScript monolith with PostgreSQL as the primary database.
 
-## Why
+## Rationale
 
-- Next.js App Router colocates API routes and UI in one repo, reducing operational complexity for a team-sized product.
-- TypeScript throughout enables shared types between API route handlers and client components without a separate schema layer.
-- PostgreSQL provides relational integrity needed for multi-tenant data (orgs → projects → bugs → history).
-- Tailwind CSS + shadcn/ui (Radix primitives) gives a component library without a large design-system dependency.
+**Next.js App Router** — co-locates API routes and UI in a single deployable unit. Eliminates a separate backend service for an internal workspace tool. webpack mode is explicitly selected (`--webpack` flag in dev and build commands), opting out of Turbopack for stability.
+
+**TypeScript** — enforced across the entire codebase (strict typecheck CI step via `npm run typecheck`).
+
+**PostgreSQL** — relational data model with foreign keys, needed for bug/project/org relationships and audit history. Docker Compose used for local development.
+
+**React 19 + Tailwind CSS v4 + shadcn/ui** — modern component primitives with utility CSS. shadcn components are inlined into `src/components/ui/` (not imported from a package) for full customization control.
+
+**Node.js built-in test runner** — chosen over Jest/Vitest for zero-config unit testing. Tests run with `--import tsx` for TypeScript support.
+
+**Playwright** — e2e testing against a real seeded database.
 
 ## Consequences
 
-- **Webpack mode** is explicitly forced (`--webpack` in dev and build scripts), suggesting Turbopack was evaluated and had issues.
-- The MCP SDK dependency (`@modelcontextprotocol/sdk`) ties the project to LLM tooling from the start.
-- No ORM is used — all DB access is raw SQL via `pg`, keeping query control but requiring manual schema management.
-- Dual-database testing (in-memory vs PostgreSQL) adds complexity but enables fast unit test feedback loops.
+- Full-stack TypeScript in one repo simplifies onboarding but requires disciplined layer separation (see [Architecture: Layers](../systems/bug_tracker/architecture/layers.md))
+- webpack mode adds build overhead compared to Turbopack — accepted for ecosystem maturity
+- In-memory test backend (`BUG_TRACKER_TEST_DB_BACKEND=memory`) makes unit tests fast but requires a separate postgres test suite for DB-specific behavior
