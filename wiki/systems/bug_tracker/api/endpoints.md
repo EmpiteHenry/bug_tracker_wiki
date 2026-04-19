@@ -2,101 +2,124 @@
 type: system
 owner: engineering
 last_updated: 2026-04-20
-source_count: 35
-tags: [api, rest, nextjs, routes]
+source_count: 30
+tags: [api, rest, endpoints]
 status: active
 ---
 
-# API Endpoints
+# API Endpoints Reference
 
-All routes live under `src/app/api/`. Every handler is wrapped with `withRequestObservability` which records request metrics and structured logs.
+All handlers are wrapped with `withRequestObservability` which logs request timing and errors to the operational log.
 
-## Authentication (`/api/auth/`)
+## Authentication — `/api/auth/*`
 
-| Method | Path | Purpose |
+| Method | Path | Description |
 |---|---|---|
 | POST | `/api/auth/signup` | Register user + create organization; sets session cookie |
-| POST | `/api/auth/login` | Authenticate; sets session cookie |
-| POST | `/api/auth/logout` | Clear session cookie and delete session row |
-| GET | `/api/auth/session` | Return current session info (used by the client) |
+| POST | `/api/auth/login` | Authenticate with email/password; sets session cookie |
+| POST | `/api/auth/logout` | Invalidate session cookie |
+| GET | `/api/auth/session` | Return current session info |
 | POST | `/api/auth/verify-email` | Consume email verification token |
-| POST | `/api/auth/forgot-password` | Trigger forgot-password email |
-| POST | `/api/auth/reset-password` | Consume reset token, set new password |
+| POST | `/api/auth/forgot-password` | Send password reset email |
+| POST | `/api/auth/reset-password` | Consume reset token and set new password |
 | POST | `/api/auth/change-password` | Change password for authenticated user |
 
-## Bugs (`/api/bugs/`)
+Session is stored in a cookie (`getSessionCookieName()`). The Extension uses `Authorization: Bearer` header instead.
 
-| Method | Path | Purpose |
+## Bugs — `/api/bugs/*`
+
+| Method | Path | Description |
 |---|---|---|
-| GET | `/api/bugs` | List bugs with filters (project, status, reporter, dates, sort) |
-| POST | `/api/bugs` | Create a new bug |
-| GET | `/api/bugs/[bugId]` | Get bug detail |
-| PATCH | `/api/bugs/[bugId]` | Update bug fields (title, status, severity, assignee, project…) |
-| PATCH | `/api/bugs/bulk` | Bulk status update for an array of bug IDs |
+| GET | `/api/bugs` | List bugs (filterable by project, status, reporter, dates, sort) |
+| POST | `/api/bugs` | Create a bug |
+| GET | `/api/bugs/[bugId]` | Get single bug |
+| PATCH | `/api/bugs/[bugId]` | Update bug fields (title, description, severity, status, assignee, project, section, archived) |
+| PATCH | `/api/bugs/bulk` | Bulk update bug statuses |
 | GET | `/api/bugs/[bugId]/comments` | List comments |
-| POST | `/api/bugs/[bugId]/comments` | Add comment |
+| POST | `/api/bugs/[bugId]/comments` | Add comment (with optional visibility) |
 | POST | `/api/bugs/[bugId]/attachments` | Upload attachment |
 | GET | `/api/bugs/[bugId]/attachments/[attachmentId]` | Download attachment |
 | DELETE | `/api/bugs/[bugId]/attachments/[attachmentId]` | Delete attachment |
-| GET | `/api/bugs/[bugId]/history` | Bug change timeline (admin only) |
+| GET | `/api/bugs/[bugId]/history` | List change history (org admin only) |
 
-## Agent API (`/api/agent/`) — Headless/Automation
+## Agent API — `/api/agent/*`
 
-| Method | Path | Purpose |
+Authenticated via agent API key. Used by automated agents.
+
+| Method | Path | Description |
 |---|---|---|
 | GET | `/api/agent/bugs` | List claimable bugs |
-| GET | `/api/agent/bugs/[bugId]` | Get bug for agent consumption |
-| POST | `/api/agent/bugs/[bugId]/claim` | Claim a bug (`claimedBy` string) |
-| PATCH | `/api/agent/bugs/[bugId]/status` | Update agent work state and note |
+| GET | `/api/agent/bugs/[bugId]` | Get bug detail |
+| POST | `/api/agent/bugs/[bugId]/claim` | Claim a bug (`claimedBy` string required) |
+| PATCH | `/api/agent/bugs/[bugId]/status` | Update agent work state (`claimedBy`, `state`, `statusNote`) |
 
-Agent routes use Bearer token auth (`requireAgentApiUser`), not session cookies.
+## Admin — `/api/admin/*`
 
-## Admin (`/api/admin/`) — Admin-Only
+All endpoints require admin role (`requireAdminUser`).
 
-| Method | Path | Purpose |
+### Projects
+| Method | Path | Description |
 |---|---|---|
 | GET/POST | `/api/admin/projects` | List / create projects |
-| PATCH | `/api/admin/projects/[projectId]` | Update project |
+| PATCH | `/api/admin/projects/[projectId]` | Update project (name, key, description, isArchived) |
 | GET/POST | `/api/admin/projects/[projectId]/sections` | List / create sections |
 | PATCH | `/api/admin/projects/[projectId]/sections/[sectionId]` | Update section |
+
+### Users
+| Method | Path | Description |
+|---|---|---|
 | GET/POST | `/api/admin/users` | List / create QA users |
-| POST | `/api/admin/users/[userId]/deactivate` | Deactivate a QA user |
-| GET | `/api/admin/dashboard/summary` | Admin dashboard metrics |
-| GET | `/api/admin/logs` | Paginated operational logs |
+| POST | `/api/admin/users/[userId]/deactivate` | Deactivate QA user |
+
+### Monitoring
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/admin/logs` | Paginated operational logs (filterable by severity) |
 | GET | `/api/admin/errors` | Grouped error fingerprints |
-| PATCH | `/api/admin/errors/[fingerprint]/bug` | Link error group to a bug / project |
+| PATCH | `/api/admin/errors/[fingerprint]/bug` | Link error group to a bug |
 | GET | `/api/admin/alerts` | List operational alerts |
-| GET/PATCH | `/api/admin/alerts/[alertId]` | Get or update alert status |
+| GET/PATCH | `/api/admin/alerts/[alertId]` | Get / update alert status |
 | POST | `/api/admin/alerts/[alertId]/bugs` | Create bug from alert |
 | GET | `/api/admin/performance/endpoints` | Endpoint performance stats |
 | GET | `/api/admin/performance/org-usage` | Per-org usage stats |
-| GET/PATCH | `/api/admin/notifications/settings` | Notification settings |
+| GET | `/api/admin/dashboard/summary` | Admin dashboard summary |
+
+### Notifications
+| Method | Path | Description |
+|---|---|---|
+| GET/PATCH | `/api/admin/notifications/settings` | List / update notification settings |
 | GET | `/api/admin/notifications/deliveries` | Delivery history |
-| POST | `/api/admin/notifications/deliveries/[id]/retry` | Retry delivery |
-| POST | `/api/admin/notifications/events/[id]/retry` | Retry notification event |
-| GET | `/api/admin/organizations-with-projects` | Org + project list |
+| POST | `/api/admin/notifications/deliveries/[deliveryId]/retry` | Retry failed delivery |
+| POST | `/api/admin/notifications/events/[eventId]/retry` | Retry failed event |
 
-## Extension (`/api/extension/`)
+## Extension API — `/api/extension/*`
 
-| Method | Path | Purpose |
+Separate auth flow using `Authorization: Bearer` token (not cookies).
+
+| Method | Path | Description |
 |---|---|---|
-| POST | `/api/extension/auth/login` | Extension login (returns token) |
-| POST | `/api/extension/auth/logout` | Extension logout |
-| GET | `/api/extension/auth/session` | Check extension session |
-| GET | `/api/extension/projects` | Projects list for extension picker |
-| POST | `/api/extension/bugs` | Submit bug from extension |
-| GET | `/api/extension/version` | Version compatibility check |
+| POST | `/api/extension/auth/login` | Login, returns token |
+| POST | `/api/extension/auth/logout` | Invalidate token |
+| GET | `/api/extension/auth/session` | Get current session |
+| GET | `/api/extension/projects` | List projects |
+| GET | `/api/extension/version` | Extension compatibility check |
+| POST | `/api/extension/bugs/[bugId]/evidence` | Upload evidence during testing session |
 
-## Other
+## Observability — `/api/observability/*`
 
-| Method | Path | Purpose |
+| Method | Path | Description |
 |---|---|---|
-| POST | `/api/observability/page-load` | Ingest client-side page load metrics |
-| POST | `/api/onboarding/organizations` | Create organization during onboarding |
-| GET/POST | `/api/organizations` | List / create organizations |
-| POST | `/api/invitations/activate` | Accept an org invitation |
-| GET | `/api/settings/api-access` | API key settings |
+| POST | `/api/observability/page-load` | Record client-side page load metrics |
 
-## OpenAPI
+## Error Response Pattern
 
-A static spec is served from `public/openapi.json` and rendered at `/settings/api-docs`.
+API errors follow this pattern based on the service error class thrown:
+
+| Error Class | HTTP Status |
+|---|---|
+| `AuthenticationError` | 401 |
+| `ActiveOrganizationSessionError` | 403 |
+| `BugServiceError` | 400 / 404 |
+| `ProjectServiceError` | 400 / 404 |
+| `OperationalAlertServiceError` | 400 / 404 |
+| Unhandled | 500 |

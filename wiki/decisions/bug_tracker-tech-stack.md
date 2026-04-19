@@ -2,41 +2,45 @@
 type: decision
 owner: engineering
 last_updated: 2026-04-20
-source_count: 3
-tags: [nextjs, react, postgresql, typescript, architecture]
+source_count: 4
+tags: [tech-stack, next.js, typescript]
 status: active
 ---
 
-# ADR-001: Technology Stack
+# ADR-002: Technology Stack
 
-## Decision
+## Decisions
 
-Bug Tracker is built as a **Next.js 16 (App Router) monolith** using TypeScript, React 19, and PostgreSQL.
+### Next.js App Router (not Pages Router)
 
-## Rationale
+All routes use the App Router pattern with route handlers (`route.ts` files) for APIs and React Server Components for UI.
 
-**Why Next.js App Router:**
-The App Router allows co-locating API routes (`src/app/api/`) and React Server Components alongside client pages in a single repository, eliminating a separate backend service while keeping the deployment footprint small.
+Webpack mode is used explicitly (`next dev --webpack`, `next build --webpack`) rather than Turbopack — likely for compatibility with specific Node.js addons (e.g. `pg` native bindings) or build plugins.
 
-**Why webpack mode:**
-`next dev --webpack` and `next build --webpack` are explicitly specified in all scripts. This avoids Turbopack compatibility issues with the project's current dependency set.
+### TypeScript Throughout
 
-**Why PostgreSQL:**
-- Relational data model maps naturally to the org → project → bug hierarchy
-- JSONB columns for flexible fields (job summaries, options)
-- Transaction support critical for multi-step operations (signup, import)
-- `pg` driver is mature and well-typed (`@types/pg`)
+Both frontend and backend are TypeScript. No JavaScript files in `src/`. `tsconfig.json` enforces strict checks via `npm run typecheck`.
 
-**Why a worker thread for the DB:**
-Next.js server components and API routes run on the Node.js event loop. Blocking PostgreSQL queries are offloaded to a dedicated worker thread (`postgres-worker.ts`) to prevent latency spikes on concurrent requests.
+### PostgreSQL Worker Thread
 
-**Why dual DB backend (in-memory + PostgreSQL):**
-Running `npm test` against the in-memory backend keeps the fast unit test suite independent of Docker, enabling rapid TDD. PostgreSQL-specific behavior is validated separately via `npm run test:unit:postgres`.
+The `pg` client runs in a dedicated worker thread (`postgres-worker.ts`) to avoid blocking the Node.js event loop during heavy queries. This is bundled separately via esbuild.
 
-See [Database Choice ADR](bug_tracker-database-dual-backend.md) for details on the dual-backend pattern.
+### Zod for Validation
 
-**Why Zod 4:**
-Schema validation at API boundaries with TypeScript inference eliminates hand-written type guards on request bodies.
+Runtime validation at API boundaries uses Zod v4. Type inference from schemas feeds TypeScript types.
 
-**Why shadcn/ui:**
-Provides accessible, composable primitives (via Radix/Base UI) that can be copied and customised rather than imported as an opaque library dependency.
+### shadcn/ui Component Library
+
+UI components under `src/components/ui/` are shadcn/ui components (Radix primitives + Tailwind). These are copied into the repo (not a runtime dependency) and can be customised freely.
+
+### SendGrid for Email
+
+Transactional email via SendGrid. No self-hosted SMTP. The integration is optional for local development.
+
+### Node Built-in Test Runner
+
+Tests use `node --test` (no Jest or Vitest). This avoids a heavy test framework dependency and works natively in Node 22+.
+
+### Playwright for E2E
+
+End-to-end tests use `@playwright/test`. A separate seeded test database is used for E2E runs on port 3001.

@@ -2,56 +2,75 @@
 type: runbook
 owner: engineering
 last_updated: 2026-04-20
-source_count: 2
-tags: [deployment, nginx, production]
+source_count: 3
+tags: [deployment, production, nginx]
 status: active
 ---
 
-# Deployment
+# Production Deployment
 
-## Production Build
-
-```bash
-npm run build
-# Runs: next build --webpack && build:db-worker
-# Output: .next/ + .next/db/postgres-worker.mjs
-```
-
-## Start Production Server
+## Build & Start
 
 ```bash
-npm run start
-# Runs: next start
+npm run build   # Next.js production build + DB worker bundle
+npm run start   # Start production server on port 3000
 ```
 
-## Environment Variables
+The build step produces two artifacts:
+- `.next/` — Next.js app
+- `.next/db/postgres-worker.mjs` — standalone PostgreSQL worker thread
 
-Ensure all required env vars are set before starting. Key variables (see `.env.example`):
+Both must be present for the app to start correctly.
 
-| Variable | Purpose |
+## Environment
+
+Copy and configure `.env` for production:
+
+| Variable | Notes |
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection string |
-| `SENDGRID_API_KEY` | Email delivery (optional for non-email flows) |
-| `SESSION_SECRET` | Cookie signing secret |
+| `SESSION_SECRET` | Strong random secret (min 32 chars) |
+| `SENDGRID_API_KEY` | Required for email delivery |
+| `NEXT_PUBLIC_APP_URL` | Full public URL (used in email links) |
 
 ## Database Migrations
 
-Apply migrations before each deployment that includes schema changes:
+Run migrations before starting the app after every release that changes the schema:
 
 ```bash
 npm run db:migrate:postgres
 ```
 
-Migrations run the script at `scripts/migrate-postgres.ts` against the `DATABASE_URL` in `.env`.
+Migrations are not applied automatically on startup.
 
-## Nginx / Reverse Proxy
+## Nginx Configuration
 
-For domain-based deployments with HTTPS termination and reverse proxy, follow the guide in [`docs/deployment-nginx.md`](../../docs/deployment-nginx.md).
+See `docs/deployment-nginx.md` for the full Nginx setup. The standard pattern:
 
-## Observability Output
+```nginx
+server {
+    listen 443 ssl;
+    server_name yourdomain.com;
 
-The app writes structured NDJSON logs to `log/observability.ndjson`. Configure log rotation and forwarding as described in [`docs/observability.md`](../../docs/observability.md).
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
 
-## run.sh
+## Admin Bootstrap
 
-A `run.sh` script is present at the repo root. This is likely a convenience wrapper for production start commands — review its contents before deploying to ensure it matches your environment.
+On first deployment, bootstrap the admin user:
+
+```bash
+# See src/lib/db/bootstrap-admin.ts for the mechanism
+# Typically run once via a migration or startup script
+```
+
+## Checking Health
+
+- Admin dashboard: `/admin/dashboard`
+- Operational logs: `/admin/monitoring`
+- `log/observability.ndjson` — structured log file for external ingestion

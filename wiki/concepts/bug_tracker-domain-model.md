@@ -3,68 +3,91 @@ type: concept
 owner: engineering
 last_updated: 2026-04-20
 source_count: 10
-tags: [domain, model, organizations, projects, bugs]
+tags: [domain, bugs, organizations, projects]
 status: active
 ---
 
-# Domain Model
+# Bug Tracker — Domain Model
 
-## Entity Hierarchy
+## Core Entities
 
+### Organization
+The top-level tenant boundary. Every user, project, and bug belongs to an organization. Created during signup. Users can belong to multiple organizations and switch between them via the organization switcher.
+
+### User
+Has a name, email, and password. Can be:
+- **Regular member** — participates in one or more organizations
+- **Admin** — full access to admin panel, all organizations
+- **QA user** — created by admins for testing purposes; can be deactivated
+
+### Project
+Scoped to an organization. Organizes bugs into logical groupings (e.g. by product area). Projects have a short `key` used for display. Projects can be archived.
+
+### Section
+An ordered sub-grouping within a project (e.g. sprint, milestone, or feature area). Bugs are assigned to a project and optionally to a section.
+
+### Bug
+The central entity. A bug belongs to an organization, project, and optionally a section.
+
+**Status lifecycle:**
 ```
-Organization
-  └── Project
-        └── Section (optional)
-              └── Bug
-                    ├── Comment
-                    ├── Attachment
-                    └── History Entry
+New → Triaged → In Progress → Ready for QA → Closed
+                                            ↓
+                                         (Reopened)
 ```
 
-## Organizations
+**Severity levels** (from badge component):
+- Low
+- Medium  
+- High
+- Critical
 
-The top-level multi-tenancy unit. Every user belongs to at least one organization. Users switch between organizations via the organization switcher.
+**Key fields:**
+- `title` — short description
+- `description` — full detail
+- `severity` — impact level
+- `status` — workflow state
+- `reporter_user_id` — who reported it
+- `assignee_user_id` — who is working it (nullable)
+- `is_archived` — soft-delete flag
+- `agent_state` / `claimed_by` — agent automation fields
 
-- Managed by: `organization-service.ts`, `organization-membership-service.ts`
-- Active organization is stored in the session: `active-organization-session.ts`
-- Organizations have billing plans tracked by `organization-billing-service.ts` and seat limits enforced by `organization-seat-service.ts`
+### Bug Comment
+Text attached to a bug. Has a `visibility` field: `internal` (team-only) or `external` (customer-facing).
 
-## Projects
+### Bug Attachment
+A file uploaded against a bug (screenshot, log file, recording).
 
-A workspace for grouping related bugs. Each project has:
-- A **name** and short **key** (identifier prefix)
-- Optional **description**
-- **Archive** flag for retired projects
-- **Sections** — ordered sub-groups within a project (e.g., "Frontend", "Backend")
+### Bug History
+Immutable audit trail. Every field change on a bug records a history entry with:
+- `event_type` — e.g. `bug_created`, `bug_status_changed`, `bug_import_created`
+- `changed_fields` — array of `{field, previousValue, nextValue}`
+- Source: either a user action or a system/import action
 
-User access to projects is controlled separately from org membership via `project-membership-service.ts`.
+## Filter Model
 
-## Bugs
+The bug list supports filtering by:
+- Project
+- Status
+- Reporter user
+- Date range (start/end)
+- Show archived (boolean)
+- Sort field: `createdAt` | `updatedAt` | `status` | `project`
+- Sort direction: `asc` | `desc`
 
-The core entity. Key relationships:
-- Must belong to a **Project** and optionally a **Section**
-- Has a **reporter** (the user who filed it) and optional **assignee**
-- Tracks **severity** and **status** (see [Bug Management](../systems/bug_tracker/bugs/bug-management.md))
-- Accumulates **comments**, **attachments**, and a **history** audit trail
+## Organization Access Model
 
-## Users
+- Users must be members of an organization to access its data.
+- The active organization is tracked in the session (`active-organization-session.ts`).
+- Organization admins have elevated permissions (e.g. view bug history).
+- Project access can be further restricted (`project-access-context.ts`).
 
-Users authenticate with email/password. Roles:
-- **Admin** — full platform access including all admin routes
-- **Member** — normal workspace user
-- **QA User** — created by admins with temporary passwords for testing purposes
+## Bug Data Import/Export
 
-## Invitations
+Bugs can be bulk-imported from CSV and exported to ZIP archives.
 
-Organizations invite new members via email. The invitation flow:
-1. Admin creates invitation → `organization-invitation-service.ts` → sends email
-2. Recipient clicks link → `/invitations/[invitationId]`
-3. Activation via `organization-invitation-activation-service.ts`
+**Import:** validates rows, reports invalid rows with field-level issues, then executes with a configurable duplicate strategy (`skip_existing` | `update_existing`).
 
-## Audit Log
+**Export:** produces a manifest with counts of bugs, history entries, attachments, and missing files.
 
-Organization-level actions are recorded by `organization-audit-log-service.ts` for compliance and debugging.
-
-## Billing
-
-`organization-billing-service.ts` and `billing-ui.ts` manage plan state. The billing UI is at `/billing`.
+Jobs are tracked in `bug_data_jobs` with statuses: `queued` → `running` → `completed` / `completed_with_warnings` / `failed`.
