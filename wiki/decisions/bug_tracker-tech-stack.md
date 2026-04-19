@@ -3,26 +3,41 @@ type: decision
 owner: engineering
 last_updated: 2026-04-20
 source_count: 3
-tags: [nextjs, react, typescript, postgresql]
+tags: [nextjs, typescript, react, tech-stack]
 status: active
 ---
 
-# ADR-001: Technology Stack
+# ADR-001: Tech Stack Selection
 
 ## Decision
 
-Build Bug Tracker as a **Next.js 16 monolith** (App Router) with TypeScript, React 19, PostgreSQL, and SendGrid.
+Use Next.js 16 (App Router) with TypeScript, React 19, Tailwind CSS 4, and PostgreSQL.
 
 ## Context
 
-The project needed a full-stack TypeScript application that could ship both the authenticated web UI and the REST API from a single codebase with minimal operational overhead.
+The application needs:
+- Authenticated multi-tenant workspace (server-rendered pages + API routes)
+- A single deployable unit covering both UI and backend API
+- Strong typing for correctness across a complex domain model
 
-## Rationale
+## Choices Made
 
-**Why:** Next.js App Router collocates API Route Handlers with UI pages, eliminating a separate API service and reducing deployment surface. TypeScript throughout enables shared types between client UI, API routes, and service layer with no duplication.
+### Next.js App Router
+Full-stack in one repo. API routes and React Server Components coexist. Reduces infra complexity for a team-sized product.
 
-**Why PostgreSQL:** Relational data model (orgs → projects → bugs → comments/history) maps naturally to SQL. The in-memory test backend (swapped via `BUG_TRACKER_TEST_DB_BACKEND=memory`) allows fast unit tests without Docker.
+**Webpack mode** (`--webpack`) used explicitly — `next dev --webpack` and `next build --webpack`. The default Turbopack is not used, likely for plugin compatibility.
 
-**Why SendGrid:** Transactional email with template management; optional for local dev (variables left empty).
+### PostgreSQL over SQLite/NoSQL
+Relational model fits the domain (orgs → projects → bugs → comments/attachments/history). PostgreSQL enables complex queries for monitoring, grouping, and audit.
 
-**How to apply:** Avoid adding a separate Express/Fastify API server. New backend logic belongs in `src/lib/*` service/store files, surfaced via Next.js Route Handlers.
+### In-Memory DB for Tests
+`BUG_TRACKER_TEST_DB_BACKEND=memory` lets the default test suite run without Docker. PostgreSQL tests are opt-in via `npm run test:unit:postgres`.
+
+### shadcn/ui + Tailwind CSS 4
+Component primitives from shadcn with Radix UI under the hood. Tailwind 4 for styling.
+
+### Zod 4 for Validation
+Used for schema validation at API boundaries and form inputs.
+
+### SendGrid for Email
+Transactional email via SendGrid. Configurable via env vars; disabled locally when key is absent.

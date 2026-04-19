@@ -9,49 +9,37 @@ status: active
 
 # Incomplete Implementations
 
-Several files in the codebase contain skeletal function bodies — the type signatures and control flow are defined but return values are missing. These represent work in progress or placeholders left from initial scaffolding.
+Several helper functions in the codebase have skeletal implementations — function bodies exist but return nothing, have empty switch cases, or have missing branches.
 
-## Known Incomplete Functions
+## Known Locations
 
-### `summarizeBugDataJobs` (`bug-data-management-panel.helpers.ts`)
+### `bug-data-management-panel.helpers.ts`
 
-```ts
-export function summarizeBugDataJobs(jobs: BugDataManagementJob[]) {
-  const countsByStatus = BUG_DATA_JOB_STATUSES.reduce(
-    (accumulator, status) => {
-      // body missing
-    },
-    {} as Record<BugDataJobStatus, number>,
-  );
-  return {}; // empty return
-}
-```
+`summarizeBugDataJobs()` — `reduce` accumulator body is empty; return value is empty object.  
+`formatBugDataJobProgress()` — import branch returns nothing.  
+`formatBugDataJobIssueSummary()` — error and warning branches return nothing.  
+`formatBugHistoryEventLabel()` — switch statement has no cases.
 
-The `reduce` accumulator body and the return value are empty. This function is used by the admin bug data management panel to summarise job status counts.
+### `all-bugs-filters.ts`
 
-### `formatBugDataJobProgress` (`bug-data-management-panel.helpers.ts`)
+`parseAllBugFilters()` — filter state construction is empty (truncated in source).
 
-The import branch and the "progress available" branch both have empty bodies. The function returns `null` in all cases.
+### `alert-list-filters.ts`
 
-### `formatBugDataJobIssueSummary` / `formatBugHistoryEventLabel` and others
+`validateMonitoringAlertFilters()` — date range comparison and limit validation branches are empty.
 
-Several helper functions in `bug-data-management-panel.helpers.ts` and `bug-history.helpers.ts` have empty `switch` or `if` branches.
+### `project-access-context.ts`
 
-### Route handler bodies (`src/app/api/`)
+`getNoProjectAccessContent()` — returns empty object `{}`.
 
-Many route handler `try` blocks and error-mapping branches are empty skeletons in the shared source provided. This may reflect source truncation in the wiki ingest rather than truly empty production code — verify against the live files before acting.
+### Various API route handlers
 
-### Filter builder `if` branches (`all-bugs-filters.ts`, `alert-list-filters.ts`, `notification-center-filters.ts`)
+Multiple `try/catch` blocks in admin and auth routes have empty bodies (skeleton pattern — implementation may be in separate files or not yet written).
 
-The `buildAllBugSearchParams`, `buildMonitoringAlertSearchParams`, and `buildNotificationDeliverySearchParams` functions have empty `if` blocks where search params should be appended.
+## Impact
 
-## Risk Assessment
-
-If these are truly empty in production:
-- `summarizeBugDataJobs` will always return `{}` → admin job summary panel will show no data
-- Filter builder functions will always return empty `URLSearchParams` → list views will ignore all filters
-- Route handlers with empty `try` blocks will return undefined or throw
+These gaps may cause runtime errors or silent failures when the relevant code paths are hit. The most user-visible risk is in `summarizeBugDataJobs` (admin bug data panel) and `formatBugHistoryEventLabel` (bug history timeline).
 
 ## Recommended Action
 
-Audit each file against git history to determine if the source provided to the wiki generator was truncated. Run `npm run typecheck` — TypeScript should flag missing return types. Run `npm test` to catch obvious regressions.
+Audit each empty function body and either implement or confirm the function is unreachable in the current feature set. Add unit tests to catch regressions.

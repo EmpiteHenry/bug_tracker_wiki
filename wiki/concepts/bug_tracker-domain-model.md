@@ -3,7 +3,7 @@ type: concept
 owner: engineering
 last_updated: 2026-04-20
 source_count: 5
-tags: [domain, data-model, entities]
+tags: [domain, model, bugs, organizations, projects]
 status: active
 ---
 
@@ -12,53 +12,49 @@ status: active
 ## Entity Hierarchy
 
 ```
-Organization
-├── has many Members (Users with roles)
-├── has many Projects
-│   └── has many Sections
-│       └── has many Bugs
-│           ├── has many Comments
-│           ├── has many Attachments
-│           └── has many History Entries
-├── has many Invitations
-├── has one Billing plan
-└── has many Audit Log entries
+User
+└── belongs to one or more Organizations (via Membership)
+    └── Organization
+        ├── has many Projects
+        │   ├── has many Sections
+        │   └── has many Bugs (scoped to project + section)
+        │       ├── has many Comments
+        │       ├── has many Attachments
+        │       ├── has many HistoryEntries
+        │       └── has TestingSessions (QA evidence)
+        ├── has AuditLog
+        ├── has NotificationSettings
+        └── has Billing state
 ```
 
-## Key Entities
+## Bug Fields
 
-### Bug
+| Field | Type | Notes |
+|---|---|---|
+| `title` | string | Required |
+| `description` | string | Required |
+| `severity` | string | e.g. critical, high, medium, low |
+| `status` | enum | New, Triaged, In Progress, Ready for QA, Closed |
+| `reporterUserId` | number? | Who filed it |
+| `assigneeUserId` | number? | Who owns it |
+| `projectId` | number | Required |
+| `sectionId` | number | Required |
+| `is_archived` | boolean | Soft-delete |
 
-The central entity. Fields: title, description, severity, status, projectId, sectionId, reporterUserId, assigneeUserId, isArchived.
+## Organization Membership Roles
 
-Severity and status are string-typed enums enforced by service-layer validation, not DB constraints.
+Roles control access to admin surfaces and project membership. `requireOrganizationAdminAccessForUser()` gates admin-only operations.
 
-### Organization
+## Active Organization Session
 
-Top-level tenant boundary. All bug data is scoped to an org. Users switch orgs via the org switcher; the active org is stored in the session.
+A user can belong to multiple organizations. The "active" org is stored in session state. All bug/project queries are scoped to the active org.
 
-### Project / Section
+## Project Sections
 
-Projects group bugs by product area. Sections provide ordering within a project (analogous to columns in a kanban board).
+Projects have ordered sections (like columns in a board or phases in a pipeline). Sections have `displayOrder` and `isArchived`.
 
-### Bug History Entry
+## Operational Alerts vs Bugs
 
-Immutable audit trail. Each entry records `eventType` and a list of `changedFields` with `previousValue` / `nextValue`. Source is classified as user, import, or system.
-
-### Testing Session
-
-Represents an active QA session. While a testing session is open, the Chrome extension can attach evidence (screenshots, recordings) to bugs through the extension evidence API.
-
-### Operational Alert
-
-A monitored-infrastructure concern (distinct from bugs). Alerts have a `groupingKey` for deduplication and can be promoted to bugs via the admin panel.
-
-## Status Lifecycle
-
-```
-New → Triaged → In Progress → Ready for QA → Closed
-                                                ↑
-                                          (can reopen)
-```
-
-`isArchived` is orthogonal to status — a bug can be archived at any status.
+**Operational Alerts** come from the monitoring system (log-derived, auto-detected).  
+**Bugs** are human or agent-submitted issue reports.  
+Alerts can be promoted to bugs via `createBugFromOperationalAlert()`.

@@ -2,48 +2,58 @@
 type: runbook
 owner: engineering
 last_updated: 2026-04-20
-source_count: 2
+source_count: 1
 tags: [deployment, nginx, production]
 status: active
 ---
 
 # Deployment
 
-## Production Build
+> Full deployment walkthrough is in `docs/deployment-nginx.md` in the repository.
+
+## Build
 
 ```bash
-npm run build        # Next.js build + esbuild postgres-worker
-npm run start        # Start production server
+npm run build
 ```
 
-The `build` script also compiles the PostgreSQL worker to `.next/db/postgres-worker.mjs`.
+This runs:
+1. `next build --webpack` — Next.js production build
+2. `build:db-worker` — bundles `postgres-worker.ts` to `.next/db/postgres-worker.mjs`
 
-## Nginx / Reverse Proxy
+Both artifacts are required for production.
 
-Full reverse-proxy and domain setup is documented in `docs/deployment-nginx.md` in the repository. This covers:
+## Start
 
-- Nginx configuration for the Next.js server
-- Domain and SSL setup
-- Port forwarding
+```bash
+npm run start
+```
 
-## Observability in Production
+Runs `next start` — serves the production build.
 
-Structured logs are written to `log/observability.ndjson` (NDJSON format) via `observability-file-sink.ts`. See `docs/observability.md` for log rotation, monitoring integration, and alerting setup.
+## Nginx
+
+The repo includes an Nginx-based reverse proxy setup documented in `docs/deployment-nginx.md`. This handles:
+- Domain-based routing
+- SSL termination
+- Proxying to `next start`
+
+## CI Script
+
+```bash
+npm run ci          # full local CI (lint + typecheck + test + build)
+npm run ci:quick    # skips slower checks
+npm run ci:e2e      # includes Playwright e2e
+```
 
 ## Database
 
-Run migrations against the production database before deploying a new version:
+Run migrations before starting the app on a new environment:
 
 ```bash
-NODE_ENV=production npm run db:migrate:postgres
+npm run db:migrate:postgres
 ```
 
-Ensure `DATABASE_URL` (or `POSTGRES_*` vars) points to the production instance.
+Bootstrap admin user (first deploy):
 
-## Admin Bootstrap
-
-On first deployment, `bootstrap-admin.ts` seeds the initial admin account from environment variables. Run once after the first migration.
-
-## run.sh
-
-`run.sh` in the repo root is a convenience wrapper for production start. Review its contents before use in a new environment.
+See `src/lib/db/bootstrap-admin.ts`.

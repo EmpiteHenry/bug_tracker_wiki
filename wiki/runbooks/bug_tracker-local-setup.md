@@ -2,8 +2,8 @@
 type: runbook
 owner: engineering
 last_updated: 2026-04-20
-source_count: 2
-tags: [setup, local, development, postgres, docker]
+source_count: 1
+tags: [setup, local-dev, docker, postgresql]
 status: active
 ---
 
@@ -17,10 +17,10 @@ status: active
 ## First-Time Setup
 
 ```bash
-# 1. Clone and enter the repo
+# 1. Clone and enter repo
 cd /path/to/bug_tracker
 
-# 2. Create local env file
+# 2. Create env file
 cp .env.example .env
 
 # 3. Install dependencies
@@ -29,57 +29,59 @@ npm install
 # 4. Start PostgreSQL
 docker compose up -d postgres
 
-# 5. Apply database migrations
+# 5. Run migrations
 npm run db:migrate:postgres
 
-# 6. Start the dev server
+# 6. Start dev server
 npm run dev
 ```
 
-Open http://localhost:3000.
+Open `http://localhost:3000`.
 
 ## Daily Workflow
 
-| Task | Command |
-|---|---|
-| Start dev server | `npm run dev` |
-| Run fast unit tests | `npm run test` |
-| Run PostgreSQL unit tests | `npm run test:unit:postgres` |
-| Type-check | `npm run typecheck` |
-| Lint | `npm run lint` |
-| Production build | `npm run build && npm run start` |
-
-## E2E Tests
-
 ```bash
-# Seed test DB and start on port 3001
-npm run dev:playwright
-
-# In another terminal
-npm run test:e2e
-npm run test:e2e:ui    # with Playwright UI
-```
-
-## Agent / CLI Tools
-
-```bash
-npm run bugs:cli      # bug agent CLI
-npm run alerts:cli    # operational alerts CLI
-npm run mcp:server    # MCP tool server for LLM agents
+docker compose up -d postgres   # ensure DB is running
+npm run dev                     # start Next.js dev server
 ```
 
 ## Environment Variables
 
-Key variables in `.env`:
+`.env.example` contains all required vars with local defaults. Key vars:
 
-| Variable | Purpose |
+| Var | Purpose |
 |---|---|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `SENDGRID_API_KEY` | Email delivery (optional for local dev) |
-| `BUG_TRACKER_TEST_DB_BACKEND` | `memory` (default) or `postgres` for tests |
+| `DATABASE_URL` (or similar) | PostgreSQL connection string |
+| `SENDGRID_API_KEY` | Leave empty to disable email in dev |
 
-## Troubleshooting
+## Test Commands
 
-- **`db:migrate:postgres` fails** — check Docker is running: `docker compose ps`
-- **Port 5432 in use** — stop local PostgreSQL: `brew services stop postgresql` or equivalent
-- **Type errors after pull** — run `npm run typecheck` to regenerate Next.js types
+```bash
+npm test                    # fast unit tests (in-memory DB, no Docker needed)
+npm run test:unit:postgres  # unit tests against real PostgreSQL
+npm run typecheck           # TypeScript type checking
+npm run lint                # ESLint
+```
+
+## E2E Tests
+
+```bash
+npm run dev:playwright      # seed test DB + start on port 3001
+npm run test:e2e            # run Playwright tests
+npm run test:e2e:ui         # Playwright UI mode
+```
+
+## Build & Production Preview
+
+```bash
+npm run build
+npm run start
+```
+
+## Useful Scripts
+
+```bash
+npm run bugs:cli    # bug agent CLI (tsx scripts/bug-agent-cli.ts)
+npm run alerts:cli  # alerts CLI (tsx scripts/alerts-cli.ts)
+npm run mcp:server  # MCP server for LLM agent integration
+```

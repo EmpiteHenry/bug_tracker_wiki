@@ -2,70 +2,77 @@
 type: system
 owner: engineering
 last_updated: 2026-04-20
-source_count: 42
-tags: [nextjs, typescript, react, postgresql, bug-tracking]
+source_count: 45
+tags: [nextjs, typescript, postgresql, bug-tracker]
 status: active
 ---
 
 # Bug Tracker — System Overview
 
-Bug Tracker is a multi-tenant Next.js 16 application for capturing, triaging, and managing software issues inside authenticated workspaces.
+A Next.js 16 application for teams to capture, triage, and manage software issues inside an authenticated workspace.
 
 ## Tech Stack
 
-| Layer | Choice |
+| Layer | Technology |
 |---|---|
-| Framework | Next.js 16 (App Router, webpack mode) |
+| Framework | Next.js 16.1.6 (App Router, webpack mode) |
 | Language | TypeScript 5 |
 | UI | React 19, Tailwind CSS 4, shadcn/ui |
-| Database | PostgreSQL (primary) + in-memory (test) |
+| Database | PostgreSQL (primary), in-memory SQLite (tests) |
 | Email | SendGrid |
 | Runtime | Node.js |
 
-## Top-Level Architecture
-
-```
-browser client
-    │
-    ├── /app/(authenticated)/*   — protected workspace UI
-    ├── /app/api/*               — Next.js Route Handlers (REST API)
-    │       ├── /auth/*          — login, signup, session, password flows
-    │       ├── /bugs/*          — CRUD, comments, attachments, bulk
-    │       ├── /agent/*         — agent automation API
-    │       ├── /extension/*     — Chrome extension API
-    │       ├── /admin/*         — admin surfaces (monitoring, alerts, users)
-    │       ├── /organizations/* — org management, invitations
-    │       └── /projects/*      — project and section management
-    │
-    └── /src/lib/*               — domain services, stores, utilities
-```
-
 ## Major Subsystems
 
-| Subsystem | Key files | Description |
+| Subsystem | Location | Purpose |
 |---|---|---|
-| Auth | `src/lib/auth/` | Session cookies, email verification, password reset |
-| Bugs | `src/lib/bugs/` | Core bug lifecycle, history, comments, attachments |
-| Organizations | `src/lib/organizations/` | Multi-tenancy, invitations, billing, seats |
-| Projects | `src/lib/projects/` | Projects and sections within an org |
-| Monitoring | `src/lib/monitoring/` | Observability, operational logs, grouped errors, alerts |
-| Notifications | `src/lib/notifications/` | Event-driven emails via SendGrid templates |
-| Agent API | `src/lib/bugs/agent-api.ts` | Programmatic bug claiming and status updates for AI agents |
-| MCP Server | `src/lib/bugs/mcp-server.ts` | Model Context Protocol server for LLM tool use |
-| Extension | `src/lib/extension/` | Chrome extension version gating and auth |
-| Data I/O | `src/lib/bugs/bug-data-*` | Bulk import/export with job tracking |
+| Auth | `src/lib/auth/` | Login, signup, sessions, password flows |
+| Bugs | `src/lib/bugs/` | Core bug CRUD, comments, attachments, history |
+| Organizations | `src/lib/organizations/` | Multi-tenant orgs, membership, invitations, billing |
+| Projects | `src/lib/projects/` | Project + section management |
+| Monitoring | `src/lib/monitoring/` | Operational logs, alerts, error fingerprinting, performance |
+| Notifications | `src/lib/notifications/` | Email dispatch via SendGrid, templates, delivery tracking |
+| Agent API | `src/app/api/agent/` | Programmatic bug operations for automated agents |
+| Extension API | `src/app/api/extension/` | Chrome extension auth and bug reporting |
+| Admin API | `src/app/api/admin/` | Admin-only management surfaces |
+| Settings | `src/lib/settings/` | API keys, JWT config, API access |
 
-## Request Flow
+## URL Structure
 
-Every API route is wrapped in `withRequestObservability(method, handler)` which records performance metrics, errors, and structured logs before delegating to the handler.
+```
+/                        → redirect
+/login                   → login form
+/signup                  → registration + org creation
+/dashboard               → authenticated home
+/bugs                    → bug list with filters
+/bugs/[bugId]            → bug detail
+/bugs/new                → create bug
+/admin/*                 → admin panel
+/settings/*              → user/org settings
+/organization/*          → org management
+/billing                 → billing panel
+```
+
+## API Route Groups
+
+- `/api/auth/*` — authentication flows
+- `/api/bugs/*` — bug CRUD and sub-resources
+- `/api/agent/bugs/*` — agent-facing bug API
+- `/api/extension/*` — Chrome extension API
+- `/api/admin/*` — admin operations
+- `/api/organizations/*` — org management
+- `/api/projects/*` — project management
+- `/api/invitations/*` — invitation flows
+- `/api/observability/*` — client-side telemetry ingestion
+- `/api/settings/*` — API key and access settings
 
 ## Related Pages
 
-- [Auth System](./auth.md)
-- [Bug Lifecycle](./bug-lifecycle.md)
-- [Agent API](./agent-api.md)
-- [Monitoring & Observability](./monitoring.md)
-- [Notifications](./notifications.md)
-- [Data Import / Export](./data-import-export.md)
-- [Chrome Extension](./chrome-extension.md)
-- [Local Setup Runbook](../../runbooks/bug_tracker-local-setup.md)
+- [Authentication](../auth/authentication.md)
+- [Bug Lifecycle](../bugs/bug-lifecycle.md)
+- [Agent API](../agent/agent-api.md)
+- [Monitoring & Observability](../monitoring/observability.md)
+- [Database](../database/schema.md)
+- [Admin Panel](../admin/admin-panel.md)
+- [Notifications](../notifications/email-notifications.md)
+- [Chrome Extension API](../extension/chrome-extension.md)
