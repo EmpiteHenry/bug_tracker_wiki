@@ -1,9 +1,9 @@
 ---
 type: decision
 owner: engineering
-last_updated: 2026-04-19
+last_updated: 2026-04-20
 source_count: 3
-tags: [decision, next.js, postgresql, typescript]
+tags: [nextjs, react, postgresql, typescript, architecture]
 status: active
 ---
 
@@ -11,35 +11,32 @@ status: active
 
 ## Decision
 
-Build Bug Tracker as a Next.js 16 full-stack application with PostgreSQL, TypeScript throughout, and shadcn/ui for the component library.
+Bug Tracker is built as a **Next.js 16 (App Router) monolith** using TypeScript, React 19, and PostgreSQL.
 
-## Why Next.js App Router
+## Rationale
 
-- Co-locates API routes and UI in a single deployable unit — reduces operational overhead vs. separate frontend/backend repos
-- React Server Components allow direct DB access in render without extra API roundtrips for read-heavy admin pages
-- Built-in file-based routing matches the admin section hierarchy naturally
+**Why Next.js App Router:**
+The App Router allows co-locating API routes (`src/app/api/`) and React Server Components alongside client pages in a single repository, eliminating a separate backend service while keeping the deployment footprint small.
 
-**Why Webpack mode**: `next dev --webpack` and `next build --webpack` are used explicitly (not Turbopack), suggesting a need for Webpack-specific plugin compatibility or stability.
+**Why webpack mode:**
+`next dev --webpack` and `next build --webpack` are explicitly specified in all scripts. This avoids Turbopack compatibility issues with the project's current dependency set.
 
-## Why PostgreSQL over SQLite / other
+**Why PostgreSQL:**
+- Relational data model maps naturally to the org → project → bug hierarchy
+- JSONB columns for flexible fields (job summaries, options)
+- Transaction support critical for multi-step operations (signup, import)
+- `pg` driver is mature and well-typed (`@types/pg`)
 
-- Multi-user concurrent writes require a proper RDBMS
-- Existing `pg` ecosystem and full SQL support for complex queries (grouped errors, performance aggregation)
-- Docker Compose makes local setup straightforward
-- An in-memory test database (`BUG_TRACKER_TEST_DB_BACKEND=memory`) avoids requiring Docker for fast unit tests
+**Why a worker thread for the DB:**
+Next.js server components and API routes run on the Node.js event loop. Blocking PostgreSQL queries are offloaded to a dedicated worker thread (`postgres-worker.ts`) to prevent latency spikes on concurrent requests.
 
-## Why Postgres Worker Thread
+**Why dual DB backend (in-memory + PostgreSQL):**
+Running `npm test` against the in-memory backend keeps the fast unit test suite independent of Docker, enabling rapid TDD. PostgreSQL-specific behavior is validated separately via `npm run test:unit:postgres`.
 
-The DB client runs in a separate worker thread (`postgres-worker.ts` bundled with esbuild). This prevents blocking the Next.js event loop on DB I/O, keeping API routes responsive under load.
+See [Database Choice ADR](bug_tracker-database-dual-backend.md) for details on the dual-backend pattern.
 
-## Why Zod 4
+**Why Zod 4:**
+Schema validation at API boundaries with TypeScript inference eliminates hand-written type guards on request bodies.
 
-Request body validation uses Zod 4 (latest major). Provides runtime type safety at API boundaries without duplicating TypeScript types.
-
-## Why shadcn/ui
-
-Unstyled, composable primitives using Radix/Base UI. Components live in `src/components/ui/` and are owned by the project (not a runtime dependency), allowing full customization without forking.
-
-## Why MCP SDK
-
-`@modelcontextprotocol/sdk` enables exposing bug operations as structured tools for AI assistants. This is an intentional design choice to support AI-assisted bug triage workflows alongside the existing agent API.
+**Why shadcn/ui:**
+Provides accessible, composable primitives (via Radix/Base UI) that can be copied and customised rather than imported as an opaque library dependency.

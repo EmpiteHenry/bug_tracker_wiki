@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "started_at": "2026-04-20T07:29:18.464247+10:00",
+  "wiki_path": "/Users/henrysmith/Empite/bug_tracker_wiki",
+  "repos": {
+    "bug_tracker": {
+      "status": "done",
+      "started_at": "2026-04-20T07:29:18.489641+10:00",
+      "finished_at": "2026-04-20T07:32:47.390453+10:00"
+    }
+  }
+}

@@ -1,92 +1,84 @@
 ---
 type: runbook
 owner: engineering
-last_updated: 2026-04-19
+last_updated: 2026-04-20
 source_count: 2
-tags: [runbook, local, setup, onboarding]
+tags: [setup, local, development, postgresql, docker]
 status: active
 ---
 
-# Runbook: Local Development Setup
+# Local Development Setup
 
 ## Prerequisites
 
-Install before starting:
 - Node.js (LTS)
 - npm
-- Docker Desktop (for PostgreSQL)
+- Docker + Docker Compose
 
-## Steps
-
-### 1. Clone and configure environment
+## First-Time Setup
 
 ```bash
-cd bug_tracker
+# 1. Clone and enter the repo
+cd /Users/henrysmith/Empite/bug_tracker
+
+# 2. Copy environment file
 cp .env.example .env
-# Edit .env if you need non-default PostgreSQL settings
-```
+# Keep default PostgreSQL settings unless you have a reason to change them.
+# Leave SendGrid vars empty for local development.
 
-### 2. Install dependencies
-
-```bash
+# 3. Install dependencies
 npm install
-```
 
-### 3. Start PostgreSQL
-
-```bash
+# 4. Start PostgreSQL
 docker compose up -d postgres
-```
 
-Verify it's running:
-```bash
-docker compose ps
-```
-
-### 4. Run migrations
-
-```bash
+# 5. Apply database migrations
 npm run db:migrate:postgres
-```
 
-### 5. Start development server
-
-```bash
+# 6. Start the dev server
 npm run dev
 ```
 
-The `predev` script automatically builds the DB worker bundle first.
+Open [http://localhost:3000](http://localhost:3000).
 
-### 6. Open the app
+## Common Commands
 
-Navigate to `http://localhost:3000`. Create an account on first run — this creates your user and organization.
-
-## Troubleshooting
-
-| Symptom | Fix |
+| Command | Purpose |
 |---|---|
-| Migration fails with connection refused | Check Docker is running: `docker compose up -d postgres` |
-| `Cannot find module '.next/db/postgres-worker.mjs'` | Run `npm run build:db-worker` manually |
-| TypeScript errors on startup | Run `npm run typecheck` to see full diagnostics |
-| Email not sending | Leave SendGrid vars empty for local dev; emails are logged but not sent |
+| `npm run dev` | Start dev server (runs `build:db-worker` first via `predev`) |
+| `npm run db:migrate:postgres` | Apply migrations (needs `.env` + running postgres) |
+| `npm test` | Fast unit tests (in-memory DB, no Docker needed) |
+| `npm run test:unit:postgres` | PostgreSQL-backed unit tests |
+| `npm run build` | Production build + DB worker bundle |
+| `npm run start` | Serve production build locally |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | TypeScript type check |
+| `npm run bugs:cli` | Run the bug agent CLI |
+| `npm run alerts:cli` | Run the alerts CLI |
+| `npm run mcp:server` | Start the MCP server |
 
-## Running Tests
+## E2E Tests
 
 ```bash
-# Fast unit tests (in-memory DB, no Docker needed)
-npm run test
+# Seed test DB and start dev server on port 3001
+npm run dev:playwright
 
-# PostgreSQL-backed unit tests (needs Docker running)
-npm run test:unit:postgres
-
-# E2E tests
-npm run test:e2e:seed
-npm run dev:playwright   # in separate terminal
+# Run Playwright tests
 npm run test:e2e
+
+# Interactive Playwright UI
+npm run test:e2e:ui
 ```
 
-## Related
+## CI
 
-- [System overview](../systems/bug_tracker/overview.md)
-- `docs/deployment-nginx.md` for reverse-proxy setup
-- `docs/observability.md` for log file locations
+```bash
+npm run ci          # Full local CI
+npm run ci:quick    # Skip slower checks
+npm run ci:e2e      # E2E only
+```
+
+## Advanced
+
+- Nginx reverse proxy: see [`docs/deployment-nginx.md`](../../docs/deployment-nginx.md)
+- Observability file output: see [`docs/observability.md`](../../docs/observability.md)

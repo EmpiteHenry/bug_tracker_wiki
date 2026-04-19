@@ -1,77 +1,72 @@
 ---
 type: system
 owner: engineering
-last_updated: 2026-04-19
-source_count: 5
+last_updated: 2026-04-20
+source_count: 10
 tags: [database, postgresql, schema, migrations]
 status: active
 ---
 
-# Database Schema & Configuration
+# Database
 
-## Database Backends
+## Backend Selection
 
-The app supports two backends selected by `BUG_TRACKER_TEST_DB_BACKEND`:
+The application supports two database backends:
 
-| Mode | Used when | File |
+| Backend | When used | Config |
 |---|---|---|
-| `memory` | Unit tests (`npm test`) | `local-test-database.ts` |
-| `postgres` | Development and production | `postgres-client.ts` |
+| PostgreSQL | Production and `test:unit:postgres` | `DATABASE_URL` env var |
+| In-memory | Default `npm test` / unit tests | `BUG_TRACKER_TEST_DB_BACKEND=memory` |
 
-The `database-client.ts` module exports `getDatabase()` which returns the appropriate client based on environment.
+The active backend is selected at startup via `src/lib/db/database-client.ts` → `getDatabase()`. The in-memory adapter mirrors the PostgreSQL schema so tests run without Docker.
 
 ## PostgreSQL Setup
 
-Config loaded from environment variables in `postgres-config.ts`:
-- `POSTGRES_HOST` (default `127.0.0.1`)
-- `POSTGRES_PORT` (default `5432`)
-- `POSTGRES_DB`
-- `POSTGRES_USER`
-- `POSTGRES_PASSWORD`
+- Client: `pg` (node-postgres)
+- Config: `src/lib/db/postgres-config.ts` reads env vars
+- Client pool: `src/lib/db/postgres-client.ts`
+- Schema DDL: `src/lib/db/postgres-schema.ts`
+- Migrations: `scripts/migrate-postgres.ts` — run via `npm run db:migrate:postgres`
+- Bootstrap (admin seed): `src/lib/db/bootstrap-admin.ts`
 
-Local dev uses Docker Compose (`compose.yaml`, service `postgres`).
+## Worker Thread
 
-## Migrations
+PostgreSQL queries run inside a worker thread to avoid blocking the Next.js server event loop:
 
-```bash
-npm run db:migrate:postgres
-```
+- Worker entry: `src/lib/db/postgres-worker.ts`
+- Bundled to `.next/db/postgres-worker.mjs` via esbuild during `build:db-worker`
+- Bootstrap for worker: `src/lib/db/postgres-worker-bootstrap.mjs`
 
-Runs `scripts/migrate-postgres.ts` which applies SQL migrations in order.
+## Schema Highlights (from `src/lib/db/schema.ts`)
 
-Schema source files:
-- `src/lib/db/schema.ts` — shared TypeScript schema types
-- `src/lib/db/postgres-schema.ts` — PostgreSQL-specific DDL helpers
+Key tables inferred from service and store files:
 
-## Postgres Worker
-
-DB operations run in a separate worker thread (`postgres-worker.ts`) to keep the Next.js main thread non-blocking. The worker is bundled separately:
-
-```bash
-npm run build:db-worker   # outputs to .next/db/postgres-worker.mjs
-```
-
-`postgres-worker-bootstrap.mjs` is the entry point. `postgres-bootstrap.ts` handles worker startup.
-
-## Key Schema Entities (inferred from services)
-
-| Entity | Description |
+| Table | Purpose |
 |---|---|
-| `users` | Authenticated user accounts |
-| `sessions` | Auth session tokens |
+| `users` | User accounts |
+| `sessions` | Active login sessions |
 | `auth_action_tokens` | One-time tokens (verify email, reset password) |
-| `organizations` | Top-level tenancy unit |
-| `organization_members` | User ↔ organization membership |
-| `organization_invitations` | Pending invitations |
-| `projects` | Bug containers within an org |
-| `project_sections` | Sub-divisions of a project |
+| `organizations` | Tenant workspaces |
+| `organization_memberships` | User ↔ org membership with roles |
+| `organization_invitations` | Pending invites |
+| `projects` | Bug projects within an org |
+| `project_sections` | Optional sections within a project |
+| `project_memberships` | User ↔ project access |
 | `bugs` | Core bug records |
 | `bug_comments` | Comments on bugs |
-| `bug_history` | Audit trail of bug changes |
-| `attachments` | File attachment metadata |
-| `notifications` | Notification event records |
-| `notification_deliveries` | Per-recipient delivery attempts |
-| `operational_logs` | Structured app log entries |
-| `operational_alerts` | Alert records from monitoring |
-| `bug_data_jobs` | Import/export job records |
-| `api_keys` | API key credentials |
+| `bug_attachments` | File attachments |
+| `bug_history` | Audit trail of field changes |
+| `bug_data_jobs` | Async import/export job tracking |
+| `operational_logs` | Structured observability logs |
+| `operational_alerts` | Derived alert records |
+| `notifications` | Notification events |
+| `notification_deliveries` | Per-recipient email delivery records |
+| `api_keys` | User API keys for agent access |
+| `testing_sessions` | Manual QA testing session records |
+
+## Test Utilities
+
+- `src/lib/db/local-test-database.ts` — in-memory DB factory
+- `src/lib/db/postgres-test-reset.ts` — truncate tables between tests
+- `src/lib/db/test-database.ts` — unified test DB interface
+- `src/lib/db/postgres-test-setup.test.ts` — validates schema parity

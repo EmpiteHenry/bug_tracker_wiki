@@ -1,69 +1,61 @@
 ---
 type: system
 owner: engineering
-last_updated: 2026-04-19
-source_count: 45
-tags: [next.js, react, typescript, postgresql, bug-tracking]
+last_updated: 2026-04-20
+source_count: 40
+tags: [nextjs, react, typescript, postgresql, bug-tracking]
 status: active
 ---
 
 # Bug Tracker — System Overview
 
-Bug Tracker is a multi-tenant Next.js 16 application for capturing, triaging, and managing software bugs inside authenticated workspaces.
+Bug Tracker is a Next.js 16 application for teams to capture, triage, and manage software issues inside an authenticated multi-tenant workspace.
 
-## Architecture at a Glance
+## Core Capabilities
 
-```
-Browser (React/Next.js)
-    │
-    ├─ App Router (src/app/)
-    │   ├─ (authenticated)/    ← workspace UI, requires session
-    │   └─ api/                ← REST API route handlers
-    │
-    ├─ Service Layer (src/lib/)
-    │   ├─ auth/               ← sessions, passwords, email verification
-    │   ├─ bugs/               ← bug CRUD, comments, attachments, history
-    │   ├─ organizations/      ← tenancy, billing, invitations, membership
-    │   ├─ projects/           ← project and section management
-    │   ├─ monitoring/         ← observability, alerts, performance
-    │   ├─ notifications/      ← SendGrid email pipeline
-    │   └─ settings/           ← API keys, JWT config
-    │
-    └─ Database (PostgreSQL)
-        └─ postgres-worker.ts  ← isolated worker thread for DB operations
-```
+| Area | Summary |
+|---|---|
+| Bug management | Create, update, comment, attach files, bulk status changes |
+| Project / section hierarchy | Bugs are scoped to projects and optional sections |
+| Multi-tenant organizations | Each workspace is an organization; users belong to one or more |
+| Authentication | Email/password sessions plus extension Bearer tokens and API keys |
+| Admin surfaces | Project, user, notification, monitoring, and bug-data management |
+| Agent API | Headless REST endpoints for automated bug claiming and status updates |
+| Chrome extension | Companion extension that submits bugs from the browser |
+| Observability | Structured request logging, error fingerprinting, alerting, performance |
+| Notifications | Email delivery via SendGrid with per-event settings and retry support |
+| Data import/export | Bulk CSV import and full ZIP export with async job tracking |
 
-## Key Subsystems
+## Technology
 
-| Subsystem | Purpose | Key files |
-|---|---|---|
-| Authentication | Session cookies, password flows, email verify | [auth](../../concepts/bug_tracker-auth-flow.md) |
-| Bug management | CRUD, bulk ops, attachments, comments, history | [bugs API](./api/bugs.md) |
-| Organizations | Multi-tenancy, invitations, seats, billing | [organizations API](./api/organizations.md) |
-| Admin panel | User mgmt, projects, monitoring, notifications | [admin API](./api/admin.md) |
-| Agent API | Automated bug claim/update for AI agents | [agent API](./api/agent.md) |
-| Chrome extension | Browser-based bug capture | [extension API](./api/extension.md) |
-| Monitoring | Structured logs, error grouping, perf metrics | [monitoring](./monitoring.md) |
-| Notifications | SendGrid email delivery with templates | [notifications](./notifications.md) |
-| Storage | File attachments on disk | [storage](./storage.md) |
-
-## Technology Stack
-
-- **Runtime**: Node.js, Next.js 16 (App Router, Webpack mode)
-- **UI**: React 19, Tailwind CSS 4, shadcn/ui, Lucide icons
-- **Database**: PostgreSQL (via `pg`), with in-memory fallback for unit tests
+- **Runtime**: Node.js via Next.js 16 (App Router, webpack mode)
+- **Frontend**: React 19, Tailwind CSS 4, shadcn/ui, Sonner toasts
+- **Database**: PostgreSQL (production); in-memory SQLite-compatible adapter for tests
 - **Email**: SendGrid
 - **Validation**: Zod 4
-- **Testing**: Node built-in test runner, Playwright (E2E)
-- **MCP**: `@modelcontextprotocol/sdk` for agent tooling
+- **MCP integration**: `@modelcontextprotocol/sdk` for the MCP server entry point
 
-## Entry Points
+## Repository Layout
 
-| Path | Purpose |
-|---|---|
-| `http://localhost:3000` | Main web app |
-| `src/app/api/` | REST API |
-| `scripts/bug-agent-cli.ts` | CLI for agent bug operations |
-| `scripts/alerts-cli.ts` | CLI for operational alerts |
-| `scripts/mcp-server.ts` | MCP server for AI tooling |
-| `extension/` | Chrome extension source |
+```
+src/app/          Next.js routes (authenticated UI + API handlers)
+src/lib/          Business logic, services, stores (no framework deps)
+src/components/   Shared React components
+scripts/          CLI entry points (bug agent, alerts, MCP server, migrations)
+extension/        Chrome extension source (manifest v3)
+docs/             Deployment and observability guides
+```
+
+## Related Pages
+
+- [Domain Model](../../concepts/bug_tracker-domain-model.md)
+- [API Endpoints](api/endpoints.md)
+- [Authentication](auth/authentication.md)
+- [Database](database/schema.md)
+- [Observability & Monitoring](monitoring/observability.md)
+- [Notifications](notifications/email-notifications.md)
+- [Agent Integration](integrations/agent-api.md)
+- [Chrome Extension](integrations/chrome-extension.md)
+- [Admin Surfaces](admin/admin-surfaces.md)
+- [Bug Data Import/Export](bugs/data-import-export.md)
+- [Local Setup Runbook](../../runbooks/bug_tracker-local-setup.md)
