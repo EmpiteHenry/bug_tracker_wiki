@@ -2,59 +2,47 @@
 type: tech-debt
 owner: engineering
 last_updated: 2026-04-20
-source_count: 3
-tags: [tech-debt, incomplete, stubs, helpers]
+source_count: 4
+tags: [helpers, incomplete, filter-logic]
 status: active
 ---
 
-# Incomplete Helper Functions
+# Incomplete Helper Implementations
 
-Several helper functions in the codebase have empty or skeleton implementations — their structure exists but the body is omitted or returns nothing.
+## Summary
+
+Several helper/utility files have structural scaffolding in place but contain empty or stub implementations inside switch/case blocks and return statements. These were identified in the source snapshot as of 2026-04-20.
 
 ## Affected Files
 
-### `src/app/(authenticated)/admin/bug-data/bug-data-management-panel.helpers.ts`
+### `bug-data-management-panel.helpers.ts`
 
-`summarizeBugDataJobs()` — the `reduce` callback body is empty (`{}`), and the return object is empty (`{}`).
+- `summarizeBugDataJobs`: `reduce` accumulator body is empty; `return {}` at the end returns an empty object instead of counts-by-status map.
+- `formatBugDataJobProgress` (import branch): empty return.
+- `formatBugDataJobIssueSummary` (error/warning branches): empty returns — always falls through to `"No issues"` even when issues exist.
+- `formatBugDataJobSummary` (import branch): empty return.
 
-`formatBugDataJobProgress()` — branches for import jobs and progress display are stubs.
+### `bug-history.helpers.ts`
 
-`formatBugDataJobIssueSummary()` — error and warning branches are stubs.
+- `formatBugHistoryEventLabel`: entire `switch` body empty — returns `undefined` for all event types.
+- `getBugHistoryEntrySource` (import branch, bug branch): empty returns.
+- `formatBugHistoryChange` (set/cleared/unchanged branches): empty returns.
 
-### `src/app/(authenticated)/admin/monitoring/alert-list-filters.ts`
+### `all-bugs-filters.ts`
 
-`validateMonitoringAlertFilters()` — range comparison for `latestSeenFrom`/`latestSeenTo` and limit validation branches are stubs.
+- Multiple normalizer functions (`normalizeOptionalPositiveInteger`, `normalizeOptionalDate`, `normalizeSortField`, `normalizeSortDirection`) have empty early-return and error branches.
+- `parseAllBugFilters`: entire function body is empty (returns `{}` cast to `AllBugsFilterState`).
 
-`buildMonitoringAlertSearchParams()` — filter param appending (severity, status, source, dates, limit) are stubs.
+### `alert-list-filters.ts` / `notification-center-filters.ts`
 
-`convertDateTimeLocalValueToIso()` — early return branches for null/invalid date are stubs.
+- Filter builders have empty `if` branches — search params may not be appended correctly.
 
-### `src/app/(authenticated)/admin/notifications/notification-center-filters.ts`
+## Risk
 
-`buildNotificationDeliverySearchParams()` — all `if` branches for appending query params are stubs.
+- Bug list page may not filter or sort correctly.
+- Bug history timeline may show blank labels and no source attribution.
+- Export/import job summaries in the admin panel may display "No issues" when errors exist.
 
-### `src/app/(authenticated)/bugs/all-bugs-filters.ts`
+## Recommended Action
 
-Many `normalizeOptional*` and `normalizeSortField/Direction` functions have empty early-return branches.
-
-`parseAllBugFilters()` — return object is empty.
-
-### `src/app/(authenticated)/bugs/[bugId]/bug-history.helpers.ts`
-
-`formatBugHistoryEventLabel()` — switch statement has no cases.
-
-`getBugHistoryEntrySource()` — import/user source branches are stubs.
-
-`formatBugHistoryChange()` — set/clear/unchanged branches are stubs.
-
-### `src/app/(authenticated)/project-access-context.ts`
-
-`getNoProjectAccessContent()` — return object is empty.
-
-## Impact
-
-These stubs cause silent failures or empty UI states rather than errors. The app may render blank panels, empty summaries, or no filters applied where data is expected.
-
-## Remediation
-
-Each function needs its body completed based on the surrounding type definitions and sibling service files. The type signatures are complete — the logic just needs filling in.
+Audit each empty branch against the corresponding type definitions and fill in the correct logic. The types are complete and accurate — only the runtime bodies are missing.

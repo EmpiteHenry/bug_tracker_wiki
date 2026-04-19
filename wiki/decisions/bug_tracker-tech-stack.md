@@ -3,50 +3,26 @@ type: decision
 owner: engineering
 last_updated: 2026-04-20
 source_count: 3
-tags: [next.js, postgresql, typescript, architecture]
+tags: [nextjs, react, typescript, postgresql]
 status: active
 ---
 
 # ADR-001: Technology Stack
 
+## Decision
+
+Build Bug Tracker as a **Next.js 16 monolith** (App Router) with TypeScript, React 19, PostgreSQL, and SendGrid.
+
 ## Context
 
-Bug Tracker needed a modern, full-stack TypeScript application with a relational database, email delivery, and support for both a browser app and API integrations (agent, extension, MCP).
+The project needed a full-stack TypeScript application that could ship both the authenticated web UI and the REST API from a single codebase with minimal operational overhead.
 
-## Decisions
+## Rationale
 
-### Next.js App Router (monorepo)
+**Why:** Next.js App Router collocates API Route Handlers with UI pages, eliminating a separate API service and reducing deployment surface. TypeScript throughout enables shared types between client UI, API routes, and service layer with no duplication.
 
-The entire application — UI, API routes, background scripts — lives in one Next.js project. This avoids a separate backend service, simplifies deployment, and keeps TypeScript types shared across the full stack.
+**Why PostgreSQL:** Relational data model (orgs → projects → bugs → comments/history) maps naturally to SQL. The in-memory test backend (swapped via `BUG_TRACKER_TEST_DB_BACKEND=memory`) allows fast unit tests without Docker.
 
-Webpack mode is used explicitly (`next dev --webpack`, `next build --webpack`) rather than Turbopack, likely for stability with the custom worker bundle step.
+**Why SendGrid:** Transactional email with template management; optional for local dev (variables left empty).
 
-### PostgreSQL as primary database
-
-PostgreSQL was chosen over a managed BaaS (Supabase, PlanetScale, etc.) to allow full schema control, custom migrations, and on-premise deployment. The database client is abstracted behind `database-client.ts` so the backing store can be replaced.
-
-**Why not SQLite in production**: The worker-thread architecture (postgres-worker.ts bundled separately) suggests PostgreSQL-specific features (connection pooling, LISTEN/NOTIFY potential) were important.
-
-### In-memory SQLite for tests
-
-Running `npm test` uses an in-memory SQLite backend to avoid requiring Docker for the default test suite. PostgreSQL-backed tests are opt-in via `npm run test:unit:postgres`. This is a deliberate DX tradeoff: fast tests by default, real-DB tests when needed.
-
-### SendGrid for email
-
-Email delivery is handled by SendGrid with plain HTML templates. No React Email, MJML, or other template framework — templates are `.html` files with string interpolation. Simple and dependency-free.
-
-### No Zod at API boundaries
-
-Request body validation uses plain TypeScript `typeof` guards rather than Zod schemas. This is consistent throughout all route handlers. This reduces bundle size and keeps validation logic explicit, at the cost of more verbose validation code.
-
-### shadcn/ui + Tailwind CSS 4
-
-UI components use shadcn/ui (component source in `src/components/ui/`). Tailwind CSS 4 with PostCSS provides utility styling. This avoids a heavy component library runtime while keeping design consistent.
-
-### MCP Server for LLM integration
-
-`@modelcontextprotocol/sdk` is included as a production dependency, exposing bug tracker operations as MCP tools. This positions the product for LLM-driven agentic workflows without requiring a separate microservice.
-
-## Status
-
-Active — reflects the current codebase as of April 2026.
+**How to apply:** Avoid adding a separate Express/Fastify API server. New backend logic belongs in `src/lib/*` service/store files, surfaced via Next.js Route Handlers.

@@ -3,72 +3,62 @@ type: concept
 owner: engineering
 last_updated: 2026-04-20
 source_count: 5
-tags: [domain-model, organizations, projects, bugs, multi-tenant]
+tags: [domain, data-model, entities]
 status: active
 ---
 
 # Domain Model
 
-## Core Entities
+## Entity Hierarchy
 
 ```
 Organization
-  └── Projects
-        └── Sections
-              └── Bugs
-                    ├── Comments
-                    ├── Attachments
-                    └── History Events
+├── has many Members (Users with roles)
+├── has many Projects
+│   └── has many Sections
+│       └── has many Bugs
+│           ├── has many Comments
+│           ├── has many Attachments
+│           └── has many History Entries
+├── has many Invitations
+├── has one Billing plan
+└── has many Audit Log entries
 ```
 
-### Organization
-
-The top-level tenant. Every user belongs to one or more organizations. All data (bugs, projects, notifications) is scoped to an organization. Users can switch between organizations they belong to.
-
-### Project
-
-A named collection of bugs within an organization. Projects have a `key` (short identifier), optional description, and an `isArchived` flag. Projects contain **Sections** for grouping bugs (e.g., "Frontend", "Backend", "Infrastructure").
+## Key Entities
 
 ### Bug
 
-The central entity. Fields:
+The central entity. Fields: title, description, severity, status, projectId, sectionId, reporterUserId, assigneeUserId, isArchived.
 
-| Field | Type | Notes |
-|---|---|---|
-| `title` | string | Short description |
-| `description` | string | Full details |
-| `severity` | enum | e.g. Low, Medium, High, Critical |
-| `status` | enum | New → Triaged → In Progress → Ready for QA → Closed |
-| `reporterUserId` | int? | Who reported it |
-| `assigneeUserId` | int? | Who is working on it |
-| `projectId` | int | Which project |
-| `sectionId` | int | Which section |
-| `is_archived` | bool | Hidden from default views |
+Severity and status are string-typed enums enforced by service-layer validation, not DB constraints.
 
-### User
+### Organization
 
-Users are members of organizations and optionally of specific projects. `isAdmin` is a boolean on the user record granting access to admin surfaces.
+Top-level tenant boundary. All bug data is scoped to an org. Users switch orgs via the org switcher; the active org is stored in the session.
 
-## Relationships
+### Project / Section
 
-- User ↔ Organization: many-to-many via `organization_members`
-- User ↔ Project: many-to-many via `project_members`
-- Bug → Project → Organization: strict ownership chain
-- Bug → Assignee (User): nullable FK
-- Bug → Reporter (User): nullable FK
+Projects group bugs by product area. Sections provide ordering within a project (analogous to columns in a kanban board).
 
-## Bug Visibility Rules
+### Bug History Entry
 
-A user can see a bug if:
-1. They have an active organization session for the bug's organization, AND
-2. They are a member of the bug's project (or are an org admin)
+Immutable audit trail. Each entry records `eventType` and a list of `changedFields` with `previousValue` / `nextValue`. Source is classified as user, import, or system.
 
-The `requireActiveOrganizationSession()` guard enforces the organization boundary. Project membership is checked at the service layer.
+### Testing Session
 
-## Active Organization Session
+Represents an active QA session. While a testing session is open, the Chrome extension can attach evidence (screenshots, recordings) to bugs through the extension evidence API.
 
-The "active organization" is the org currently selected by the user. It is stored in the session and resolved on each request. If a user belongs to multiple orgs, they must explicitly switch to see another org's data.
+### Operational Alert
 
-## Agent Identity
+A monitored-infrastructure concern (distinct from bugs). Alerts have a `groupingKey` for deduplication and can be promoted to bugs via the admin panel.
 
-Agents (automated processes) interact via API key, not user sessions. They appear in bug history as agent actions rather than user actions. The `claimedBy` field on a bug records the agent identifier string.
+## Status Lifecycle
+
+```
+New → Triaged → In Progress → Ready for QA → Closed
+                                                ↑
+                                          (can reopen)
+```
+
+`isArchived` is orthogonal to status — a bug can be archived at any status.
