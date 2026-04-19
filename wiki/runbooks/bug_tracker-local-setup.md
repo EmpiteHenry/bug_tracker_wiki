@@ -3,7 +3,7 @@ type: runbook
 owner: engineering
 last_updated: 2026-04-20
 source_count: 2
-tags: [setup, local, development, postgresql, docker]
+tags: [local-dev, setup, postgresql, docker]
 status: active
 ---
 
@@ -18,67 +18,79 @@ status: active
 ## First-Time Setup
 
 ```bash
-# 1. Clone and enter the repo
-cd /Users/henrysmith/Empite/bug_tracker
-
-# 2. Copy environment file
-cp .env.example .env
-# Keep default PostgreSQL settings unless you have a reason to change them.
-# Leave SendGrid vars empty for local development.
-
-# 3. Install dependencies
+# 1. Clone repo and install dependencies
 npm install
 
-# 4. Start PostgreSQL
+# 2. Create local env file
+cp .env.example .env
+# Edit .env if needed — defaults work for local PostgreSQL
+
+# 3. Start PostgreSQL container
 docker compose up -d postgres
 
-# 5. Apply database migrations
+# 4. Apply database migrations
 npm run db:migrate:postgres
 
-# 6. Start the dev server
+# 5. Start dev server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open `http://localhost:3000`.
 
-## Common Commands
-
-| Command | Purpose |
-|---|---|
-| `npm run dev` | Start dev server (runs `build:db-worker` first via `predev`) |
-| `npm run db:migrate:postgres` | Apply migrations (needs `.env` + running postgres) |
-| `npm test` | Fast unit tests (in-memory DB, no Docker needed) |
-| `npm run test:unit:postgres` | PostgreSQL-backed unit tests |
-| `npm run build` | Production build + DB worker bundle |
-| `npm run start` | Serve production build locally |
-| `npm run lint` | ESLint |
-| `npm run typecheck` | TypeScript type check |
-| `npm run bugs:cli` | Run the bug agent CLI |
-| `npm run alerts:cli` | Run the alerts CLI |
-| `npm run mcp:server` | Start the MCP server |
-
-## E2E Tests
+## Daily Workflow
 
 ```bash
-# Seed test DB and start dev server on port 3001
-npm run dev:playwright
+# Start dependencies
+docker compose up -d postgres
 
-# Run Playwright tests
-npm run test:e2e
-
-# Interactive Playwright UI
-npm run test:e2e:ui
+# Start dev server (automatically builds DB worker first)
+npm run dev
 ```
 
-## CI
+## Running Tests
 
 ```bash
-npm run ci          # Full local CI
+# Fast unit tests (in-memory DB, no Docker needed)
+npm test
+
+# PostgreSQL-backed unit tests (requires running container)
+npm run test:unit:postgres
+
+# E2E tests
+npm run test:e2e:seed      # seed test database
+npm run test:e2e           # run Playwright tests
+npm run test:e2e:headed    # run with visible browser
+npm run test:e2e:ui        # Playwright UI mode
+```
+
+## Code Quality
+
+```bash
+npm run lint        # ESLint
+npm run typecheck   # TypeScript + Next.js type generation
+npm run ci          # Full local CI (lint + typecheck + test)
 npm run ci:quick    # Skip slower checks
-npm run ci:e2e      # E2E only
 ```
 
-## Advanced
+## Production Build
 
-- Nginx reverse proxy: see [`docs/deployment-nginx.md`](../../docs/deployment-nginx.md)
-- Observability file output: see [`docs/observability.md`](../../docs/observability.md)
+```bash
+npm run build   # Next.js build + DB worker bundle
+npm run start   # Serve production build
+```
+
+## Environment Variables
+
+Key variables (from `.env.example`):
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` or `POSTGRES_*` | PostgreSQL connection |
+| `SENDGRID_API_KEY` | Email delivery (optional for local) |
+| `BUG_TRACKER_TEST_DB_BACKEND` | `memory` for unit tests |
+
+## Troubleshooting
+
+- **DB connection refused**: Ensure `docker compose up -d postgres` is running
+- **Worker build errors**: Run `npm run build:db-worker` manually
+- **Type errors**: Run `npm run typecheck` — it regenerates Next.js types first

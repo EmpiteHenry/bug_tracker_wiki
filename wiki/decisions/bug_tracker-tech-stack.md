@@ -2,45 +2,32 @@
 type: decision
 owner: engineering
 last_updated: 2026-04-20
-source_count: 4
-tags: [tech-stack, next.js, typescript]
+source_count: 3
+tags: [tech-stack, next.js, typescript, postgresql, react]
 status: active
 ---
 
-# ADR-002: Technology Stack
+# ADR-001: Technology Stack
 
-## Decisions
+## Decision
 
-### Next.js App Router (not Pages Router)
+Use **Next.js 16** (App Router, webpack bundler) with **TypeScript 5**, **PostgreSQL**, and **React 19**.
 
-All routes use the App Router pattern with route handlers (`route.ts` files) for APIs and React Server Components for UI.
+## Rationale
 
-Webpack mode is used explicitly (`next dev --webpack`, `next build --webpack`) rather than Turbopack — likely for compatibility with specific Node.js addons (e.g. `pg` native bindings) or build plugins.
+- **Next.js App Router**: Unified server/client rendering, built-in API routes eliminates separate backend service
+- **TypeScript**: Type safety across API contracts, service layer, and UI components
+- **PostgreSQL**: Relational integrity for multi-tenant data; organization/project/bug hierarchy maps naturally to relational model
+- **React 19 + shadcn/ui**: Modern component primitives with Tailwind CSS 4
+- **Zod 4**: Runtime schema validation at API boundaries (all request body parsing uses Zod-compatible manual checks)
 
-### TypeScript Throughout
+## Consequences
 
-Both frontend and backend are TypeScript. No JavaScript files in `src/`. `tsconfig.json` enforces strict checks via `npm run typecheck`.
+- Webpack bundler (not Turbopack) chosen for stability — noted in `npm run dev` (`--webpack` flag)
+- PostgreSQL worker thread architecture needed due to Next.js process model (see [Database Architecture](../systems/bug_tracker/database/schema.md))
+- In-memory SQLite test backend added to keep unit tests fast without Docker
 
-### PostgreSQL Worker Thread
+## Alternatives Considered
 
-The `pg` client runs in a dedicated worker thread (`postgres-worker.ts`) to avoid blocking the Node.js event loop during heavy queries. This is bundled separately via esbuild.
-
-### Zod for Validation
-
-Runtime validation at API boundaries uses Zod v4. Type inference from schemas feeds TypeScript types.
-
-### shadcn/ui Component Library
-
-UI components under `src/components/ui/` are shadcn/ui components (Radix primitives + Tailwind). These are copied into the repo (not a runtime dependency) and can be customised freely.
-
-### SendGrid for Email
-
-Transactional email via SendGrid. No self-hosted SMTP. The integration is optional for local development.
-
-### Node Built-in Test Runner
-
-Tests use `node --test` (no Jest or Vitest). This avoids a heavy test framework dependency and works natively in Node 22+.
-
-### Playwright for E2E
-
-End-to-end tests use `@playwright/test`. A separate seeded test database is used for E2E runs on port 3001.
+- Separate Express API backend — rejected to keep deployment simple
+- Turbopack — not yet adopted, webpack used explicitly

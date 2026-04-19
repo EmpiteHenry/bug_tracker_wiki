@@ -2,75 +2,66 @@
 type: runbook
 owner: engineering
 last_updated: 2026-04-20
-source_count: 3
-tags: [deployment, production, nginx]
+source_count: 2
+tags: [deployment, nginx, production, operations]
 status: active
 ---
 
-# Production Deployment
+# Deployment
 
-## Build & Start
+## Overview
+
+The app runs as a standard Next.js production server behind an Nginx reverse proxy.
+
+Full deployment details are in the repository at `docs/deployment-nginx.md`.
+
+## Production Start
 
 ```bash
-npm run build   # Next.js production build + DB worker bundle
-npm run start   # Start production server on port 3000
+# Build application + DB worker bundle
+npm run build
+
+# Start production server
+npm run start
 ```
-
-The build step produces two artifacts:
-- `.next/` — Next.js app
-- `.next/db/postgres-worker.mjs` — standalone PostgreSQL worker thread
-
-Both must be present for the app to start correctly.
-
-## Environment
-
-Copy and configure `.env` for production:
-
-| Variable | Notes |
-|---|---|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `SESSION_SECRET` | Strong random secret (min 32 chars) |
-| `SENDGRID_API_KEY` | Required for email delivery |
-| `NEXT_PUBLIC_APP_URL` | Full public URL (used in email links) |
 
 ## Database Migrations
 
-Run migrations before starting the app after every release that changes the schema:
+Run migrations against production PostgreSQL before starting the app:
+
+```bash
+node --env-file=.env --import tsx scripts/migrate-postgres.ts
+```
+
+Or via npm script (requires `.env`):
 
 ```bash
 npm run db:migrate:postgres
 ```
 
-Migrations are not applied automatically on startup.
+## Nginx Setup
 
-## Nginx Configuration
+See `docs/deployment-nginx.md` for:
+- Domain-based routing configuration
+- SSL termination
+- Reverse proxy to `http://localhost:3000`
+- Named tunnel setup via `tunnel-cli` (Cloudflare Tunnel)
 
-See `docs/deployment-nginx.md` for the full Nginx setup. The standard pattern:
+## Exposing Locally via Tunnel
 
-```nginx
-server {
-    listen 443 ssl;
-    server_name yourdomain.com;
+Use `tunnel-cli` (at `~/RanjanWork/tunnel-cli`) to expose the local dev server:
 
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
+```bash
+tunnel expose 3000       # Quick HTTPS URL (trycloudflare.com)
+tunnel start myapp 3000  # Stable named tunnel (requires Cloudflare login)
 ```
+
+## Observability in Production
+
+Structured logs written to `log/observability.ndjson`.
+
+See `docs/observability.md` for log rotation, monitoring configuration, and alerting setup.
 
 ## Admin Bootstrap
 
-On first deployment, bootstrap the admin user:
-
-```bash
-# See src/lib/db/bootstrap-admin.ts for the mechanism
-# Typically run once via a migration or startup script
-```
-
-## Checking Health
-
-- Admin dashboard: `/admin/dashboard`
-- Operational logs: `/admin/monitoring`
-- `log/observability.ndjson` — structured log file for external ingestion
+First run: `src/lib/db/bootstrap-admin.ts` seeds the initial admin user. Configure credentials via environment variables before first boot.
