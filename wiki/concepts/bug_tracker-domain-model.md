@@ -3,63 +3,72 @@ type: concept
 owner: engineering
 last_updated: 2026-04-20
 source_count: 5
-tags: [domain-model, bugs, organizations, projects, glossary]
+tags: [domain-model, organizations, projects, bugs, multi-tenant]
 status: active
 ---
 
 # Domain Model
 
-## Entity Hierarchy
+## Core Entities
 
 ```
 Organization
-  └── has many Users (via Membership)
-  └── has many Projects
-       └── has many ProjectSections
-            └── has many Bugs
-                 ├── has many Comments
-                 ├── has many Attachments
-                 └── has many HistoryEntries
+  └── Projects
+        └── Sections
+              └── Bugs
+                    ├── Comments
+                    ├── Attachments
+                    └── History Events
 ```
 
-## Core Entities
-
 ### Organization
-The top-level tenant. All data is scoped to an org. Users switch between orgs via the org switcher. Created during signup.
+
+The top-level tenant. Every user belongs to one or more organizations. All data (bugs, projects, notifications) is scoped to an organization. Users can switch between organizations they belong to.
 
 ### Project
-Belongs to an org. Groups related bugs. Has **sections** (columns/phases) for organizing bugs within a project.
+
+A named collection of bugs within an organization. Projects have a `key` (short identifier), optional description, and an `isArchived` flag. Projects contain **Sections** for grouping bugs (e.g., "Frontend", "Backend", "Infrastructure").
 
 ### Bug
-The primary work item. Key attributes:
-- **Status lifecycle**: `New` → `Triaged` → `In Progress` → `Ready for QA` → `Closed`
-- **Severity**: `low` | `medium` | `high` | `critical`
-- **Archived**: soft-deleted bugs hidden by default
 
-### BugHistory
-Immutable audit trail for a bug. Each entry records `eventType` and `changedFields` with `previousValue` / `nextValue`. Sources: user action, import, system.
+The central entity. Fields:
 
-### TestingSession
-A bounded QA session where evidence (screenshots, logs) is captured and linked to bugs. Created by the extension or agent during testing.
+| Field | Type | Notes |
+|---|---|---|
+| `title` | string | Short description |
+| `description` | string | Full details |
+| `severity` | enum | e.g. Low, Medium, High, Critical |
+| `status` | enum | New → Triaged → In Progress → Ready for QA → Closed |
+| `reporterUserId` | int? | Who reported it |
+| `assigneeUserId` | int? | Who is working on it |
+| `projectId` | int | Which project |
+| `sectionId` | int | Which section |
+| `is_archived` | bool | Hidden from default views |
 
-### OperationalAlert
-A monitoring signal that may require human action. Can be linked to a bug. Has a status lifecycle (open → acknowledged → resolved).
+### User
 
-## User Roles
+Users are members of organizations and optionally of specific projects. `isAdmin` is a boolean on the user record granting access to admin surfaces.
 
-| Role | Access |
-|---|---|
-| Platform Admin | All `/api/admin/*` routes, full system access |
-| Org Admin | Organization management, member access control |
-| Member | Bug CRUD within assigned projects |
-| Agent | Machine-to-machine via `/api/agent/*` (API key) |
+## Relationships
 
-## Key Status Enumerations
+- User ↔ Organization: many-to-many via `organization_members`
+- User ↔ Project: many-to-many via `project_members`
+- Bug → Project → Organization: strict ownership chain
+- Bug → Assignee (User): nullable FK
+- Bug → Reporter (User): nullable FK
 
-**Bug statuses** (ordered): `New`, `Triaged`, `In Progress`, `Ready for QA`, `Closed`
+## Bug Visibility Rules
 
-**Bug data job statuses**: `queued` → `running` → `completed` | `completed_with_warnings` | `failed`
+A user can see a bug if:
+1. They have an active organization session for the bug's organization, AND
+2. They are a member of the bug's project (or are an org admin)
 
-**Alert statuses**: open / acknowledged / resolved (managed via `OperationalAlertStatus` type)
+The `requireActiveOrganizationSession()` guard enforces the organization boundary. Project membership is checked at the service layer.
 
-**Notification delivery statuses**: tracked in `notification-store.ts`
+## Active Organization Session
+
+The "active organization" is the org currently selected by the user. It is stored in the session and resolved on each request. If a user belongs to multiple orgs, they must explicitly switch to see another org's data.
+
+## Agent Identity
+
+Agents (automated processes) interact via API key, not user sessions. They appear in bug history as agent actions rather than user actions. The `claimedBy` field on a bug records the agent identifier string.

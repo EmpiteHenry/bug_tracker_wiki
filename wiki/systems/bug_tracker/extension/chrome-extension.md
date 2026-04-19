@@ -2,48 +2,52 @@
 type: system
 owner: engineering
 last_updated: 2026-04-20
-source_count: 4
-tags: [extension, chrome, browser-extension, evidence]
+source_count: 5
+tags: [chrome-extension, browser-extension, evidence]
 status: active
 ---
 
 # Chrome Extension
 
-A browser extension enabling users to submit bugs and attach evidence directly from their browser.
+The Chrome extension allows testers to report bugs directly from any web page without switching to the bug tracker UI.
 
-## Files
+## Extension Files
 
-| File | Role |
-|---|---|
-| `extension/manifest.json` | Chrome extension manifest |
-| `extension/popup.html` + `popup.js` + `popup.css` | Extension popup UI |
+```
+extension/
+├── manifest.json   — extension manifest (Manifest V3)
+├── popup.html      — extension popup UI
+├── popup.css       — popup styles
+└── popup.js        — popup logic
+```
 
-## API Surface (`/api/extension/*`)
+There is also an install guide page at `src/app/chrome-extension/page.tsx` and a dashboard prompt in `src/app/(authenticated)/dashboard/extension-install-panel.tsx`.
 
-The extension has its own API surface, separate from the web app, using **Bearer token auth** (not session cookies).
+## Authentication
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/api/extension/auth/login` | Login, returns auth token |
-| POST | `/api/extension/auth/logout` | Logout |
-| GET | `/api/extension/auth/session` | Get current session |
-| GET | `/api/extension/projects` | List available projects |
-| POST | `/api/extension/bugs` | Submit a bug |
-| GET/POST | `/api/extension/bugs/[bugId]/evidence` | Attach evidence to a bug during a testing session |
-| GET | `/api/extension/version` | Extension version check |
+The extension cannot share cookies with the web app (cross-origin). It authenticates separately:
 
-## Version Management
+1. User opens popup, enters credentials
+2. Extension calls `POST /api/extension/auth/login` → receives a session token
+3. Token is stored in extension storage and sent as `Authorization: Bearer <token>` on all subsequent requests
 
-`src/lib/extension/extension-version.ts` — version compatibility checking between extension and server.
+Logout: `POST /api/extension/auth/logout` invalidates the server-side session.
+Session check: `GET /api/extension/auth/session` returns current user or 401.
 
-`src/lib/extension/extension-service.ts` — service layer for extension operations.
+## Bug Submission
 
-## Testing Session Integration
+From the popup:
+1. `GET /api/extension/projects` — load available projects
+2. User fills out bug form
+3. `POST /api/extension/bugs` — submit bug
+4. Optional: `POST /api/extension/bugs/[bugId]/evidence` — upload screenshot
 
-When a testing session is active, evidence (screenshots, recordings) submitted via `POST /api/extension/bugs/[bugId]/evidence` is associated with both the bug and the active testing session.
+Evidence uploads attach the image to the bug and link it to the active testing session.
 
-Requires `requireActiveBugTestingSession()` guard from `testing-session-service.ts`.
+## Version Check
 
-## Install Guide
+`GET /api/extension/version` returns the expected extension version. The extension service (`src/lib/extension/extension-service.ts`) and version module (`src/lib/extension/extension-version.ts`) manage version compatibility checks — useful for prompting users to update an outdated extension.
 
-User-facing install instructions are surfaced at `/chrome-extension` and via the dashboard's `extension-install-panel.tsx`.
+## Testing Sessions
+
+When a tester is active, the extension associates submitted bugs with the current testing session (see [Bug Management](../bugs/bug-management.md#testing-sessions)). This allows grouping all bugs found in a single testing pass.

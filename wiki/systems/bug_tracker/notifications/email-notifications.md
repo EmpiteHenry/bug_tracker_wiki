@@ -2,72 +2,80 @@
 type: system
 owner: engineering
 last_updated: 2026-04-20
-source_count: 10
+source_count: 14
 tags: [notifications, email, sendgrid, templates]
 status: active
 ---
 
-# Email Notifications
+# Notification System
 
-## Overview
+The notification subsystem lives in `src/lib/notifications/`. It handles all transactional email delivery via SendGrid and the admin interface for reviewing delivery history and settings.
 
-All transactional email is delivered via **SendGrid**. The notification pipeline handles event routing, recipient resolution, template rendering, and delivery tracking.
-
-## Pipeline
+## Architecture
 
 ```
-Bug/Auth Event
-  └── bug-notification-event-service.ts   — emit notification event
-       └── notification-dispatcher.ts      — route to recipient groups
-            └── bug-recipient-service.ts   — resolve recipient list
-                 └── template-engine.ts    — render HTML template
-                      └── sendgrid-delivery.ts — deliver via SendGrid API
-                           └── notification-store.ts — record delivery
+Bug event / Auth event
+       ↓
+BugNotificationEventService   ← decides which notifications to send
+       ↓
+NotificationDispatcher        ← resolves recipients and settings
+       ↓
+SendGridDelivery              ← sends via SendGrid API
+       ↓
+NotificationStore             ← persists event + delivery records
 ```
 
-## Notification Events
+## Event Types
 
-Events triggered by bug lifecycle:
+Bug-related notification events:
 
 | Event | Template |
 |---|---|
-| Bug created | `bug-created.html` |
-| Bug assigned | `bug-assigned.html` |
-| Bug status changed | `bug-status-changed.html` |
-| Bug comment added | `bug-comment.html` |
-| Bug closed | `bug-closed.html` |
-| Bug reopened | `bug-reopened.html` |
+| `bug_created` | `bug-created.html` |
+| `bug_assigned` | `bug-assigned.html` |
+| `bug_status_changed` | `bug-status-changed.html` |
+| `bug_closed` | `bug-closed.html` |
+| `bug_reopened` | `bug-reopened.html` |
+| `bug_comment` | `bug-comment.html` |
 
-Auth notification templates:
+Auth-related:
 
 | Event | Template |
 |---|---|
 | Signup welcome | `welcome.html` |
 | Email verification | `verification.html` |
 | Forgot password | `forgot-password.html` |
-| Password reset complete | `password-reset-complete.html` |
 | Password changed | `password-changed.html` |
+| Password reset complete | `password-reset-complete.html` |
 | Organization invitation | `organization-invitation.html` |
 
-All templates extend `base-layout.html` via the template engine.
+## Template Engine (`template-engine.ts`)
 
-## Template Engine
-
-`template-engine.ts` renders HTML templates with variable substitution. Templates live in `src/lib/notifications/templates/`.
+Templates are HTML files in `src/lib/notifications/templates/`. They extend `base-layout.html`. Variables are interpolated by the template engine — no external templating library.
 
 `email-template-registry.ts` maps event types to template files.
 
-## Admin Features
+## Recipient Resolution (`bug-recipient-service.ts`)
 
-Via `notification-admin-service.ts`:
+`BugRecipientService` determines who receives a notification for a given bug event: the reporter, assignee, project members, and any watchers, subject to per-recipient notification preferences.
 
-- `listNotificationDeliveryHistory()` — paginated delivery log
-- `retryNotificationDeliveryForAdmin()` — retry a failed delivery
-- `retryNotificationEvent()` — replay a notification event
-- `listNotificationSettingsSummary()` / `updateNotificationSettings()` — enable/disable notification types per recipient group
+## Notification Settings
 
-## Configuration
+Admins control which event types are enabled for which recipient groups via `GET/PATCH /api/admin/notifications/settings`. Settings are stored in the database.
 
-SendGrid API key is set via environment variables. Leave empty for local development when not testing email flows.
+## Delivery History
 
-Test endpoint available at `/api/test/sendgrid` (development only).
+Every send attempt is recorded as a delivery record with status (`pending | sent | failed`). Admins can view delivery history and retry failed deliveries or events via:
+
+- `POST /api/admin/notifications/deliveries/[id]/retry`
+- `POST /api/admin/notifications/events/[id]/retry`
+
+Filters on the delivery list: eventType, deliveryStatus, recipientEmail, limit.
+
+## SendGrid Configuration
+
+SendGrid API key and sender address are set via environment variables. Leave them empty for local development unless testing email flows. See `.env.example`.
+
+## Notification Flow Test
+
+`src/lib/notifications/bug-notification-flow.test.ts` is an integration test for the full notification pipeline.

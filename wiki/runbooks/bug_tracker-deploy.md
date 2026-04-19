@@ -3,65 +3,76 @@ type: runbook
 owner: engineering
 last_updated: 2026-04-20
 source_count: 2
-tags: [deployment, nginx, production, operations]
+tags: [deployment, production, nginx, build]
 status: active
 ---
 
 # Deployment
 
-## Overview
-
-The app runs as a standard Next.js production server behind an Nginx reverse proxy.
-
-Full deployment details are in the repository at `docs/deployment-nginx.md`.
-
-## Production Start
+## Production Build
 
 ```bash
-# Build application + DB worker bundle
+# Build Next.js app + DB worker bundle
 npm run build
 
 # Start production server
 npm run start
 ```
 
+The build step runs two commands:
+1. `next build --webpack` — compiles the Next.js application
+2. `build:db-worker` — bundles `postgres-worker.ts` into `.next/db/postgres-worker.mjs` via esbuild
+
+Both must succeed before starting the production server.
+
+## Environment
+
+Set all required environment variables before starting. At minimum:
+- PostgreSQL connection details
+- Session secret / cookie config
+- SendGrid credentials (if email is required in production)
+
 ## Database Migrations
 
-Run migrations against production PostgreSQL before starting the app:
-
-```bash
-node --env-file=.env --import tsx scripts/migrate-postgres.ts
-```
-
-Or via npm script (requires `.env`):
+Run migrations before starting the new app version:
 
 ```bash
 npm run db:migrate:postgres
 ```
 
-## Nginx Setup
+This uses `node --env-file=.env` so the `.env` file must be present and contain valid PostgreSQL credentials.
 
-See `docs/deployment-nginx.md` for:
-- Domain-based routing configuration
+## Nginx Reverse Proxy
+
+See `docs/deployment-nginx.md` in the repository for:
+- Domain-based access configuration
 - SSL termination
-- Reverse proxy to `http://localhost:3000`
-- Named tunnel setup via `tunnel-cli` (Cloudflare Tunnel)
+- Proxy pass to `localhost:3000`
+- Static asset caching headers
 
-## Exposing Locally via Tunnel
-
-Use `tunnel-cli` (at `~/RanjanWork/tunnel-cli`) to expose the local dev server:
+## CI Pipeline
 
 ```bash
-tunnel expose 3000       # Quick HTTPS URL (trycloudflare.com)
-tunnel start myapp 3000  # Stable named tunnel (requires Cloudflare login)
+# Full local CI (lint + typecheck + tests + build)
+npm run ci
+
+# Quick CI (skip E2E)
+npm run ci:quick
+
+# With E2E
+npm run ci:e2e
 ```
+
+Scripts are in `scripts/local-ci.sh`.
+
+## AWS EC2 Deployment
+
+See `tasks/prd-aws-ec2-deployment.md` for the planned EC2 deployment specification.
 
 ## Observability in Production
 
-Structured logs written to `log/observability.ndjson`.
+Structured logs are written to `log/observability.ndjson`. See `docs/observability.md` for log rotation, alerting integration, and monitoring setup.
 
-See `docs/observability.md` for log rotation, monitoring configuration, and alerting setup.
+## run.sh
 
-## Admin Bootstrap
-
-First run: `src/lib/db/bootstrap-admin.ts` seeds the initial admin user. Configure credentials via environment variables before first boot.
+`run.sh` in the repo root is a convenience script for starting the application in a server environment. Review before use in production to confirm it matches your deployment target.

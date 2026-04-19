@@ -3,101 +3,88 @@ type: system
 owner: engineering
 last_updated: 2026-04-20
 source_count: 20
-tags: [bugs, crud, comments, attachments, history, import, export]
+tags: [bugs, comments, attachments, history, import, export, testing-session]
 status: active
 ---
 
 # Bug Management
 
-Core domain: creating, reading, updating, and tracking software bugs.
+The bug subsystem lives in `src/lib/bugs/`. It covers the full lifecycle: creation, triage, comments, attachments, history tracking, bulk operations, data import/export, and agent-driven work.
 
-## Data Model (key fields)
+## Bug Service (`bug-service.ts`)
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | number | Primary key |
-| `title` | string | Required |
-| `description` | string | Required |
-| `severity` | string | e.g. `low`, `medium`, `high`, `critical` |
-| `status` | string | `New` → `Triaged` → `In Progress` → `Ready for QA` → `Closed` |
-| `reporterUserId` | number | User who filed it |
-| `assigneeUserId` | number \| null | Assigned engineer |
-| `projectId` | number | Required |
-| `sectionId` | number | Project section |
-| `is_archived` | boolean | Soft delete |
+Central service. Key operations:
 
-## API Surface (`/api/bugs/*`)
-
-| Method | Path | Action |
-|---|---|---|
-| GET | `/api/bugs` | List bugs (filterable) |
-| POST | `/api/bugs` | Create bug |
-| GET | `/api/bugs/[bugId]` | Get bug detail |
-| PATCH | `/api/bugs/[bugId]` | Update bug fields |
-| PATCH | `/api/bugs/bulk` | Bulk status update |
-| GET | `/api/bugs/[bugId]/comments` | List comments |
-| POST | `/api/bugs/[bugId]/comments` | Add comment |
-| POST | `/api/bugs/[bugId]/attachments` | Upload attachment |
-| GET | `/api/bugs/[bugId]/attachments/[id]` | Download attachment |
-| DELETE | `/api/bugs/[bugId]/attachments/[id]` | Delete attachment |
-| GET | `/api/bugs/[bugId]/history` | Audit timeline |
-
-## Bug List Filters (`all-bugs-filters.ts`)
-
-Filters available on the list view:
-
-- `projectId` — positive integer
-- `status` — one of `BUG_FILTER_STATUSES`
-- `reporterUserId` — positive integer
-- `startDate` / `endDate` — ISO date strings
-- `showArchived` — boolean
-- `sortField` — `createdAt` | `updatedAt` | `status` | `project`
-- `sortDirection` — `asc` | `desc`
-
-Default sort: `createdAt desc`.
-
-## Bug History / Audit Trail
-
-`GET /api/bugs/[bugId]/history` returns a timeline of `BugHistoryTimelineEntry` objects. Each entry includes:
-- `eventType` — e.g. `bug_created`, `bug_status_changed`, `bug_import_*`
-- `changedFields[]` — `{ field, previousValue, nextValue }`
-
-Source: `bug-history-service.ts` + `bug-history-store.ts`
-
-History entry source is derived by `getBugHistoryEntrySource()`:
-- `bug_import_*` events → "Import"
-- `bug_*` events → "User"
-- Other → "System"
-
-## Bulk Operations
-
-`PATCH /api/bugs/bulk` accepts `{ bugIds: number[], status: string }` — updates status on multiple bugs at once.
-
-## Comments
-
-Comments have a `visibility` field (public/internal). Listed at `GET /api/bugs/[bugId]/comments`.
-
-## Attachments
-
-Files stored via `attachmentStorage` (configured in `src/lib/storage/`). The store layer is `attachment-store.ts`.
-
-## Import / Export
-
-Managed via `bug-data-import-service.ts` and `bug-data-export-service.ts`. Jobs tracked in `bug-data-job-store.ts`.
-
-Job statuses: `queued` → `running` → `completed` | `completed_with_warnings` | `failed`
-
-Export manifest includes: bug count, history entry count, attachment count, missing file count.
-
-Import supports duplicate strategies: `skip_existing` | `update_existing`.
-
-## Key Service Files
-
-| File | Role |
+| Function | Description |
 |---|---|
-| `src/lib/bugs/bug-service.ts` | Core CRUD: `createBug`, `getBugById`, `updateBug`, `listBugs`, `bulkUpdateBugs` |
-| `src/lib/bugs/bug-comment-service.ts` | Comment management |
-| `src/lib/bugs/bug-history-service.ts` | Timeline entries |
-| `src/lib/bugs/bug-data-import-service.ts` | CSV/batch import |
-| `src/lib/bugs/bug-data-export-service.ts` | Export to archive |
-| `src/lib/bugs/errors.ts` | `BugServiceError` typed errors |
+| `createBug` | Create bug, record initial history event |
+| `getBugById` | Fetch single bug with org membership check |
+| `listBugs` | Filtered, sorted, paginated list |
+| `updateBug` | Update fields, record history diff |
+| `bulkUpdateBugs` | Status update for multiple bugs at once |
+| `deleteBugAttachment` | Remove attachment file + record |
+| `getAttachmentForBug` | Retrieve attachment with access check |
+| `createBugAttachment` | Store uploaded file |
+| `listClaimableBugs` | Agent-facing: bugs available for agent pickup |
+| `claimBug` | Mark bug as claimed by an agent |
+| `updateBugAgentWork` | Update agent state/note on a bug |
+
+`BugServiceError` is thrown for domain violations (not found, permission denied, invalid state).
+
+## Bug Status Values
+
+```
+New → Triaged → In Progress → Ready for QA → Closed
+```
+
+Bugs can also be archived (`is_archived`). Archived bugs are excluded from default list queries unless `showArchived=true`.
+
+## Severity Levels
+
+Defined in filter constants: used in `all-bugs-filters.ts`. Displayed via `components/bugs/severity-badge.tsx` and `components/bugs/status-badge.tsx`.
+
+## Comments (`bug-comment-service.ts`, `bug-comment-store.ts`)
+
+Comments have a `body` and optional `visibility` field (e.g., internal vs. public). `createBugComment` fires notification events.
+
+## Attachments (`attachment-store.ts`)
+
+Attachment metadata is stored in the database. File bytes are stored via `src/lib/storage/attachment-storage.ts`. The storage module is abstracted behind `src/lib/storage/index.ts` so the backend can be swapped (local disk, S3, etc.).
+
+## History (`bug-history-service.ts`, `bug-history-store.ts`)
+
+Every mutation to a bug is recorded as a history event. `listBugHistoryTimelineEntries` returns a timeline with:
+
+- `eventType` — e.g. `bug_created`, `bug_status_changed`, `bug_import_created`
+- `changedFields` — array of `{ field, previousValue, nextValue }`
+- source attribution (user, agent, or import)
+
+Helper functions in `src/app/(authenticated)/bugs/[bugId]/bug-history.helpers.ts` format events for display.
+
+## Import / Export (`bug-data-import-service.ts`, `bug-data-export-service.ts`)
+
+Admins can bulk-import bugs from CSV and export bugs to a ZIP archive.
+
+**Import flow:**
+1. Upload CSV → validation pass (returns `BugImportValidationResult` with per-row issues)
+2. If valid, execute import → `BugImportExecutionResult` with counts (created/updated/skipped/failed)
+3. Duplicate strategy: `skip_existing` or `update_existing`
+
+**Export flow:**
+1. Request export → creates job record in `bug-data-job-store.ts`
+2. Job runs, produces ZIP at `resultFilePath`
+3. Manifest records bug count, history entries, attachments, missing files
+
+Jobs are tracked in `BugDataManagementJob` with statuses: `queued → running → completed | completed_with_warnings | failed`.
+
+## Testing Sessions (`testing-session-service.ts`)
+
+A testing session groups bugs submitted by a tester during a defined time window. The extension uses this to correlate bugs reported in the same session. Sessions have a log (`testing-session-log-service.ts`) recording actions taken during the session.
+
+## Filters (`all-bugs-filters.ts`)
+
+`AllBugsFilterState` covers: projectId, status, reporterUserId, startDate, endDate, showArchived, sortField, sortDirection.
+
+`buildAllBugSearchParams` serialises filters to URL search params. `parseAllBugFilters` parses them back. `validateAllBugFilters` throws on invalid values before any DB call.
+
+Sort fields: `createdAt | updatedAt | status | project`. Sort directions: `asc | desc`.

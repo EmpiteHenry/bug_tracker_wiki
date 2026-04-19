@@ -3,31 +3,50 @@ type: decision
 owner: engineering
 last_updated: 2026-04-20
 source_count: 3
-tags: [tech-stack, next.js, typescript, postgresql, react]
+tags: [next.js, postgresql, typescript, architecture]
 status: active
 ---
 
 # ADR-001: Technology Stack
 
-## Decision
+## Context
 
-Use **Next.js 16** (App Router, webpack bundler) with **TypeScript 5**, **PostgreSQL**, and **React 19**.
+Bug Tracker needed a modern, full-stack TypeScript application with a relational database, email delivery, and support for both a browser app and API integrations (agent, extension, MCP).
 
-## Rationale
+## Decisions
 
-- **Next.js App Router**: Unified server/client rendering, built-in API routes eliminates separate backend service
-- **TypeScript**: Type safety across API contracts, service layer, and UI components
-- **PostgreSQL**: Relational integrity for multi-tenant data; organization/project/bug hierarchy maps naturally to relational model
-- **React 19 + shadcn/ui**: Modern component primitives with Tailwind CSS 4
-- **Zod 4**: Runtime schema validation at API boundaries (all request body parsing uses Zod-compatible manual checks)
+### Next.js App Router (monorepo)
 
-## Consequences
+The entire application — UI, API routes, background scripts — lives in one Next.js project. This avoids a separate backend service, simplifies deployment, and keeps TypeScript types shared across the full stack.
 
-- Webpack bundler (not Turbopack) chosen for stability — noted in `npm run dev` (`--webpack` flag)
-- PostgreSQL worker thread architecture needed due to Next.js process model (see [Database Architecture](../systems/bug_tracker/database/schema.md))
-- In-memory SQLite test backend added to keep unit tests fast without Docker
+Webpack mode is used explicitly (`next dev --webpack`, `next build --webpack`) rather than Turbopack, likely for stability with the custom worker bundle step.
 
-## Alternatives Considered
+### PostgreSQL as primary database
 
-- Separate Express API backend — rejected to keep deployment simple
-- Turbopack — not yet adopted, webpack used explicitly
+PostgreSQL was chosen over a managed BaaS (Supabase, PlanetScale, etc.) to allow full schema control, custom migrations, and on-premise deployment. The database client is abstracted behind `database-client.ts` so the backing store can be replaced.
+
+**Why not SQLite in production**: The worker-thread architecture (postgres-worker.ts bundled separately) suggests PostgreSQL-specific features (connection pooling, LISTEN/NOTIFY potential) were important.
+
+### In-memory SQLite for tests
+
+Running `npm test` uses an in-memory SQLite backend to avoid requiring Docker for the default test suite. PostgreSQL-backed tests are opt-in via `npm run test:unit:postgres`. This is a deliberate DX tradeoff: fast tests by default, real-DB tests when needed.
+
+### SendGrid for email
+
+Email delivery is handled by SendGrid with plain HTML templates. No React Email, MJML, or other template framework — templates are `.html` files with string interpolation. Simple and dependency-free.
+
+### No Zod at API boundaries
+
+Request body validation uses plain TypeScript `typeof` guards rather than Zod schemas. This is consistent throughout all route handlers. This reduces bundle size and keeps validation logic explicit, at the cost of more verbose validation code.
+
+### shadcn/ui + Tailwind CSS 4
+
+UI components use shadcn/ui (component source in `src/components/ui/`). Tailwind CSS 4 with PostCSS provides utility styling. This avoids a heavy component library runtime while keeping design consistent.
+
+### MCP Server for LLM integration
+
+`@modelcontextprotocol/sdk` is included as a production dependency, exposing bug tracker operations as MCP tools. This positions the product for LLM-driven agentic workflows without requiring a separate microservice.
+
+## Status
+
+Active — reflects the current codebase as of April 2026.

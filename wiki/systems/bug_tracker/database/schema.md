@@ -2,81 +2,74 @@
 type: system
 owner: engineering
 last_updated: 2026-04-20
-source_count: 8
-tags: [database, postgresql, schema, migrations, testing]
+source_count: 6
+tags: [database, postgresql, schema, migrations]
 status: active
 ---
 
-# Database Architecture
+# Database Schema & Configuration
 
-## Overview
+## Database Abstraction
 
-The app uses **PostgreSQL** as its primary database. For unit tests, an **in-memory SQLite** backend is available to avoid Docker dependency.
+`src/lib/db/database-client.ts` — abstract database client interface  
+`src/lib/db/index.ts` — `getDatabase()` factory, returns the configured backend  
+`src/lib/db/schema.ts` — TypeScript type definitions for all database tables  
+`src/lib/db/postgres-schema.ts` — PostgreSQL-specific DDL and schema definitions
 
-## Database Client Architecture
+## Backends
 
-PostgreSQL access is intentionally isolated in a **Worker thread** to avoid connection pool issues in Next.js serverless/edge environments:
+### PostgreSQL (Production)
 
-```
-Next.js Request Handler
-  └── getDatabase()           [src/lib/db/index.ts]
-       └── postgres-client.ts — decides backend from env
-            ├── PostgresWorker (prod/integration)
-            │    └── postgres-worker.ts  [Worker thread]
-            │         └── pg (node-postgres)
-            └── LocalTestDatabase (unit tests, in-memory)
-```
+Configuration: `src/lib/db/postgres-config.ts`  
+Client: `src/lib/db/postgres-client.ts`  
+Bootstrap: `src/lib/db/postgres-bootstrap.ts`
 
-The worker is pre-built to `.next/db/postgres-worker.mjs` during `npm run build` and `predev`.
+Connection settings come from environment variables (see `.env.example`). Default local values: `127.0.0.1:5432`.
 
-## Backend Selection
+**Worker architecture**: Some database operations run in a dedicated worker thread via `src/lib/db/postgres-worker.ts`. The worker is bundled separately by esbuild into `.next/db/postgres-worker.mjs` at build time (`npm run build:db-worker`). `postgres-worker-bootstrap.mjs` initialises the worker context.
 
-Set via environment variable:
+### In-Memory SQLite (Tests)
 
-```
-BUG_TRACKER_TEST_DB_BACKEND=memory    # in-memory SQLite (unit tests)
-BUG_TRACKER_TEST_DB_BACKEND=postgres  # real PostgreSQL
-(unset)                               # defaults to PostgreSQL in production
-```
+`src/lib/db/local-test-database.ts` — SQLite-backed test database  
+`src/lib/db/local-test-database-runtime.ts` — runtime initialisation  
+`src/lib/db/test-database.ts` — test database factory  
+`src/lib/db/postgres-test-reset.ts` — resets PostgreSQL between test runs  
+`src/lib/db/postgres-test-setup.test.ts` — test setup verification
 
-## Key Files
+Selected via `BUG_TRACKER_TEST_DB_BACKEND=memory` (default for `npm test`) or `postgres`.
 
-| File | Role |
+## Key Tables (inferred from service layer)
+
+| Table | Description |
 |---|---|
-| `src/lib/db/schema.ts` | TypeScript schema definitions |
-| `src/lib/db/postgres-schema.ts` | PostgreSQL DDL schema |
-| `src/lib/db/postgres-client.ts` | PostgreSQL client setup |
-| `src/lib/db/postgres-worker.ts` | Worker thread entry point |
-| `src/lib/db/postgres-config.ts` | Config from env vars |
-| `src/lib/db/database-client.ts` | Shared client interface |
-| `src/lib/db/local-test-database.ts` | In-memory SQLite for tests |
-| `src/lib/db/bootstrap-admin.ts` | Admin seed on first run |
-| `src/lib/db/postgres-bootstrap.ts` | Schema bootstrap |
+| `users` | User accounts, `isAdmin` flag |
+| `sessions` | Session tokens with expiry |
+| `auth_action_tokens` | Password reset / email verification tokens |
+| `organizations` | Workspace tenants |
+| `organization_members` | User ↔ org membership |
+| `organization_invitations` | Pending invitations |
+| `projects` | Projects within an org |
+| `project_sections` | Sections within a project |
+| `project_members` | User ↔ project membership |
+| `bugs` | Bug records |
+| `bug_comments` | Comments on bugs |
+| `bug_attachments` | Attachment metadata |
+| `bug_history` | Change events per bug |
+| `bug_data_jobs` | Import/export job records |
+| `testing_sessions` | Tester sessions |
+| `testing_session_logs` | Per-session activity log |
+| `operational_logs` | Observability log entries |
+| `operational_alerts` | Actionable alert records |
+| `notifications` | Notification event records |
+| `notification_deliveries` | Per-delivery status records |
+| `api_keys` | Organization API keys |
 
 ## Migrations
 
-Run against local PostgreSQL:
+Run with: `npm run db:migrate:postgres`
 
-```bash
-npm run db:migrate:postgres
-```
+Script: `scripts/migrate-postgres.ts` — applies pending migrations against the configured PostgreSQL instance.
 
-This executes `scripts/migrate-postgres.ts` using env from `.env`.
+## Type Definitions
 
-## Local Setup
-
-```bash
-# Start PostgreSQL via Docker Compose
-docker compose up -d postgres
-
-# Apply migrations
-npm run db:migrate:postgres
-```
-
-Default connection: `127.0.0.1:5432` (from `.env.example`).
-
-## Test Strategy
-
-- **Fast unit tests** (`npm test`): use in-memory backend, no Docker required
-- **PostgreSQL unit tests** (`npm run test:unit:postgres`): require running container, run via `scripts/run-postgres-unit-tests.sh`
-- **E2E tests**: seed via `npm run test:e2e:seed`, run against real DB at port 3001
+`src/lib/db/schema.ts` exports TypeScript types for all tables. `OperationalLogSeverity` is one example: `"debug" | "info" | "warn" | "error" | "critical"`. `OperationalAlertStatus` is `"open" | "acknowledged" | "resolved"`.

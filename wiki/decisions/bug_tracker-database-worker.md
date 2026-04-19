@@ -2,38 +2,33 @@
 type: decision
 owner: engineering
 last_updated: 2026-04-20
-source_count: 3
-tags: [database, worker-thread, postgresql, architecture]
+source_count: 2
+tags: [postgresql, worker-thread, esbuild, architecture]
 status: active
 ---
 
 # ADR-002: PostgreSQL Worker Thread Architecture
 
+## Context
+
+Next.js API routes run in a serverless-style execution environment. Long-lived PostgreSQL connection pools do not work well across cold-starts and the Next.js module lifecycle.
+
 ## Decision
 
-PostgreSQL connections are managed in a **dedicated Worker thread** (`postgres-worker.ts`), pre-built to `.next/db/postgres-worker.mjs`.
+Database operations that need a persistent connection pool run in a dedicated Node.js worker thread (`src/lib/db/postgres-worker.ts`). The worker is compiled separately by esbuild into `.next/db/postgres-worker.mjs` and loaded at runtime.
 
-## Rationale
+This is why `package.json` has two build steps:
+1. `next build` — compiles the Next.js app
+2. `build:db-worker` — bundles the worker with esbuild (`--platform=node --format=esm --packages=external`)
 
-Next.js App Router runs route handlers in a serverless/edge-like execution model where persistent connection pools can cause issues (connection leaks, cold start overhead, module reuse across requests).
+The `predev` hook ensures the worker bundle exists before `next dev` starts.
 
-Isolating PostgreSQL in a Worker thread:
-- Keeps the connection pool alive across requests without polluting the main thread
-- Avoids the "pg client shared across hot-reloaded modules" problem in `next dev`
-- Allows the worker to be independently bundled by esbuild
+## Tradeoffs
 
-## Consequences
+**Pro**: Connection pool lifecycle is independent of the Next.js request handler lifecycle. The worker persists between requests.
 
-- Worker must be built before `next dev` starts — handled by `predev` npm script
-- Worker is also built as part of `npm run build`
-- Tests use an in-memory backend to avoid this complexity entirely
+**Con**: Additional build step. Worker must be rebuilt when `postgres-worker.ts` changes. Adds complexity to the test setup (`local-test-database-runtime.ts` handles this for tests).
 
-## Build Commands
+## Status
 
-```bash
-# Build worker only
-npm run build:db-worker
-
-# Runs automatically before dev
-npm run dev  # predev hook builds worker first
-```
+Active.
